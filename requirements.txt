@@ -5,3 +5,4 @@ torchvision
 pillow
 rasterio
 numpy
+earthengine-api
