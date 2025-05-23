@@ -1,0 +1,3 @@
+how to start dev server:
+
+uvicorn main:app --reload
