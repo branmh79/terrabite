@@ -73,7 +73,7 @@ const handleRegionConfirm = async () => {
 
   useEffect(() => {
     if (!viewerRef.current) return;
-window.CESIUM_BASE_URL = '/Cesium/';
+    window.CESIUM_BASE_URL = '/Cesium/';
 
     const viewerInstance = new Viewer(viewerRef.current, {
     baseLayerPicker: false,
