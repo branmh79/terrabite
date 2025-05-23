@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
 *.pkl
-*.pth
 .env
 *.tif
 .DS_Store

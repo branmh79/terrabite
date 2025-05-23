@@ -6,7 +6,7 @@ import requests
 
 # === Service Account Auth ===
 SERVICE_ACCOUNT = 'terrabite-earthengine@food-desert-app.iam.gserviceaccount.com'
-KEY_PATH = 'service-account/terrabite-earthengine.json'
+KEY_PATH = '/etc/secrets/terrabite-earthengine.json'
 
 try:
     credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT, KEY_PATH)
