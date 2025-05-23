@@ -5,8 +5,16 @@ from utils.geo import get_tile_grid
 from utils.satellite import fetch_rgb_image
 from model.inference import predict_tile
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class RegionRequest(BaseModel):
     latitude: float
