@@ -26,6 +26,8 @@ export default function Globe() {
   const [centerCartographic, setCenterCartographic] = useState(null);
   const [radiusKm, setRadiusKm] = useState(5); // default radius
     const [selectionPlaced, setSelectionPlaced] = useState(false);
+const [heatmapTiles, setHeatmapTiles] = useState([]);
+const [isLoading, setIsLoading] = useState(false);
 
 const handleRegionConfirm = async () => {
   if (!centerCartographic) return;
@@ -54,6 +56,7 @@ const handleRegionConfirm = async () => {
 
     const data = await response.json();
     console.log("✅ Prediction Result:", data);
+    setHeatmapTiles(data.tiles); // Store tiles in state
     // You can optionally handle or visualize `data.tiles` here
   } catch (err) {
     console.error("❌ Prediction request failed:", err);
@@ -82,6 +85,48 @@ const handleRegionConfirm = async () => {
 
     return () => viewerInstance.destroy();
   }, []);
+
+useEffect(() => {
+    if (!viewer || !viewer.scene || !viewer.scene.canvas || heatmapTiles.length === 0) return;
+
+
+  // Optional: Clear previous heatmap tiles
+  const heatmapEntities = [];
+
+  heatmapTiles.forEach(({ lat, lon, score }) => {
+    const halfSide = 0.01; // ~1km side (adjust as needed)
+
+    const rectangle = Rectangle.fromDegrees(
+      lon - halfSide,
+      lat - halfSide,
+      lon + halfSide,
+      lat + halfSide
+    );
+
+    let color;
+    if (score >= 0.9) color = Color.WHITE;
+    else if (score >= 0.7) color = Color.YELLOW;
+    else if (score >= 0.5) color = Color.ORANGE;
+    else if (score >= 0.3) color = Color.RED;
+    else color = Color.DARKRED.withAlpha(0.9);
+
+
+    const entity = viewer.entities.add({
+      rectangle: {
+        coordinates: rectangle,
+        material: color,
+        outline: false,
+        heightReference: HeightReference.CLAMP_TO_GROUND,
+      },
+    });
+
+    heatmapEntities.push(entity);
+  });
+
+  return () => {
+    heatmapEntities.forEach((entity) => viewer.entities.remove(entity));
+  };
+}, [viewer, heatmapTiles]);
 
   useEffect(() => {
     if (!viewer) return;
@@ -244,15 +289,22 @@ const handleRegionConfirm = async () => {
     </div>
     <button
     onClick={async () => {
-        try {
+    setIsLoading(true); // 👈 Show loading message
+    setSelectionPlaced(false);
+    setSelectMode(false);
+    setCenterCartographic(null); // 👈 Clear selection
+    
+    if (viewer) viewer.entities.removeAll(); // 👈 Remove circle/label/box
+
+    try {
         await handleRegionConfirm();
-        } catch (err) {
+    } catch (err) {
         console.error("❌ Prediction error:", err);
-        } finally {
-        setSelectionPlaced(false);
-        setSelectMode(false);
-        }
+    } finally {
+        setIsLoading(false); // 👈 Hide loading message
+    }
     }}
+
 
       style={{
         backgroundColor: "#0ff",
@@ -270,7 +322,55 @@ const handleRegionConfirm = async () => {
   </div>
 )}
 
+{isLoading && (
+  <div
+    style={{
+      position: "absolute",
+      top: 20,
+      left: "50%",
+      transform: "translateX(-50%)",
+      backgroundColor: "#000",
+      color: "#0ff",
+      padding: "10px 20px",
+      borderRadius: "8px",
+      fontFamily: "monospace",
+      fontSize: "14px",
+      zIndex: 999,
+    }}
+  >
+    Calculating food desert levels...
+  </div>
+)}
 
+<div
+  style={{
+    position: "absolute",
+    bottom: 20,
+    left: 20,
+    zIndex: 999,
+    backgroundColor: "#000",
+    padding: "10px",
+    borderRadius: "6px",
+    fontFamily: "monospace",
+    color: "#fff",
+    fontSize: "12px",
+  }}
+>
+  <div style={{ marginBottom: 5 }}>Food Desert Score</div>
+  <div
+    style={{
+      width: 160,
+      height: 12,
+      background: "linear-gradient(to right, #8B0000, red, orange, yellow, white)",
+      borderRadius: "4px",
+    }}
+  />
+  <div style={{ display: "flex", justifyContent: "space-between" }}>
+    <span>0</span>
+    <span>0.5</span>
+    <span>1</span>
+  </div>
+</div>
 
       <div ref={viewerRef} style={{ height: "100%", width: "100%" }} />
     </div>
