@@ -54,9 +54,17 @@ const handleRegionConfirm = async () => {
 
     if (!response.ok) throw new Error("Failed to fetch prediction");
 
-    const data = await response.json();
+    const text = await response.text();
+
+    if (!response.ok) {
+    console.error("❌ Backend error:", text);
+    throw new Error("Failed to fetch prediction");
+    }
+
+    const data = JSON.parse(text);
+    setHeatmapTiles(data.tiles);
+
     console.log("✅ Prediction Result:", data);
-    setHeatmapTiles(data.tiles); // Store tiles in state
     // You can optionally handle or visualize `data.tiles` here
   } catch (err) {
     console.error("❌ Prediction request failed:", err);
@@ -65,6 +73,7 @@ const handleRegionConfirm = async () => {
 
   useEffect(() => {
     if (!viewerRef.current) return;
+window.CESIUM_BASE_URL = '/Cesium/';
 
     const viewerInstance = new Viewer(viewerRef.current, {
     baseLayerPicker: false,
@@ -93,7 +102,9 @@ useEffect(() => {
   // Optional: Clear previous heatmap tiles
   const heatmapEntities = [];
 
-  heatmapTiles.forEach(({ lat, lon, score }) => {
+    heatmapTiles.forEach(({ lat, lon, score }) => {
+    const clampedScore = Math.min(1, Math.max(0, parseFloat(score)));
+    if (isNaN(clampedScore)) return;
     const halfSide = 0.01; // ~1km side (adjust as needed)
 
     const rectangle = Rectangle.fromDegrees(
@@ -104,11 +115,12 @@ useEffect(() => {
     );
 
     let color;
-    if (score >= 0.9) color = Color.WHITE;
-    else if (score >= 0.7) color = Color.YELLOW;
-    else if (score >= 0.5) color = Color.ORANGE;
-    else if (score >= 0.3) color = Color.RED;
+    if (clampedScore >= 0.9) color = Color.WHITE;
+    else if (clampedScore >= 0.7) color = Color.YELLOW;
+    else if (clampedScore >= 0.5) color = Color.ORANGE;
+    else if (clampedScore >= 0.3) color = Color.RED;
     else color = Color.DARKRED.withAlpha(0.9);
+
 
 
     const entity = viewer.entities.add({
