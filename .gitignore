@@ -7,3 +7,6 @@ __pycache__/
 .idea/
 .vscode/
 /service-account/
+frontend/build/
+frontend/node_modules/
+frontend/public/cesium/
