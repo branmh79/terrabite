@@ -3,9 +3,10 @@ from torchvision import models, transforms
 from PIL import Image
 import numpy as np
 
+# Automatically choose device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Define transform (same as training)
+# Image preprocessing (same as training)
 image_transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -13,7 +14,7 @@ image_transform = transforms.Compose([
                          [0.229, 0.224, 0.225])
 ])
 
-# Load the model
+# Load and return a pretrained model
 def load_model():
     model = models.resnet18(pretrained=False)
     model.fc = torch.nn.Sequential(
@@ -25,13 +26,12 @@ def load_model():
     model.to(device)
     return model
 
-model = load_model()
-
-# Run inference on an RGB image array
-def predict_tile(image_array: np.ndarray) -> float:
+# Run inference on an image using a provided model
+def predict_tile(image_array: np.ndarray, model: torch.nn.Module) -> float:
     pil_image = Image.fromarray(image_array.astype(np.uint8))
     tensor = image_transform(pil_image).unsqueeze(0).to(device)
 
+    model.eval()
     with torch.no_grad():
         output = model(tensor)
         prob = torch.sigmoid(output).item()
