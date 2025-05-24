@@ -2,7 +2,7 @@ import ee
 import numpy as np
 from PIL import Image
 from io import BytesIO
-import requests
+import httpx
 
 # === Service Account Auth ===
 SERVICE_ACCOUNT = 'terrabite-earthengine@food-desert-app.iam.gserviceaccount.com'
@@ -23,8 +23,13 @@ def mask_s2_clouds(image):
            qa.bitwiseAnd(cirrusBitMask).eq(0))
     return image.updateMask(mask).divide(3000)
 
-# === Fetch RGB Tile from Earth Engine as NumPy Array ===
-def fetch_rgb_image(lat_min, lon_min, lat_max, lon_max, scale=10):
+# === Async Fetch RGB Tile from Earth Engine ===
+async def fetch_rgb_image_async(tile, scale=10):
+    lat_min = tile["lat_min"]
+    lon_min = tile["lon_min"]
+    lat_max = tile["lat_max"]
+    lon_max = tile["lon_max"]
+
     region = ee.Geometry.Rectangle([lon_min, lat_min, lon_max, lat_max])
 
     image = ee.ImageCollection("COPERNICUS/S2_SR") \
@@ -38,19 +43,24 @@ def fetch_rgb_image(lat_min, lon_min, lat_max, lon_max, scale=10):
         .rename(['R', 'G', 'B']) \
         .clip(region)
 
+    try:
+        url = image.getThumbURL({
+            'region': region,
+            'dimensions': 256,
+            'format': 'png',
+            'min': 0,
+            'max': 0.3
+        })
+    except Exception as e:
+        print(f"❌ Error generating URL for tile {tile}: {e}")
+        return None
 
-    url = image.getThumbURL({
-        'region': region,
-        'dimensions': 256,
-        'format': 'png',
-        'min': 0,
-        'max': 0.3  # adjust this if tiles look too dark/light
-    })
-
-
-    response = requests.get(url)
-    if response.status_code != 200:
-        raise RuntimeError(f"Image request failed with status {response.status_code}")
-
-    img = Image.open(BytesIO(response.content)).convert("RGB")
-    return np.array(img)
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            img = Image.open(BytesIO(response.content)).convert("RGB")
+            return np.array(img)
+    except Exception as e:
+        print(f"❌ Failed to download or decode image for tile {tile}: {e}")
+        return None
