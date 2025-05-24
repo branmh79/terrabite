@@ -76,10 +76,13 @@ const handleRegionConfirm = async () => {
     window.CESIUM_BASE_URL = '/Cesium/';
 
     const viewerInstance = new Viewer(viewerRef.current, {
-    baseLayerPicker: false,
-    animation: false,
-    timeline: false,
+      baseLayerPicker: false,
+      animation: false,
+      timeline: false,
+      infoBox: true,           // ✅ enable the info box
+      selectionIndicator: true // ✅ show selected entity box
     });
+
 
 
     setViewer(viewerInstance);
@@ -102,25 +105,26 @@ useEffect(() => {
   // Optional: Clear previous heatmap tiles
   const heatmapEntities = [];
 
-    heatmapTiles.forEach(({ lat, lon, score }) => {
+  heatmapTiles.forEach(({ lat, lon, score }) => {
     const clampedScore = Math.min(1, Math.max(0, parseFloat(score)));
     if (isNaN(clampedScore)) return;
-    const halfSide = 0.01; // ~1km side (adjust as needed)
+
+    const degreesPerTile = 0.022; // Was 0.0195 — increase overlap by ~10%
+
 
     const rectangle = Rectangle.fromDegrees(
-      lon - halfSide,
-      lat - halfSide,
-      lon + halfSide,
-      lat + halfSide
+      lon - degreesPerTile / 2,
+      lat - degreesPerTile / 2,
+      lon + degreesPerTile / 2,
+      lat + degreesPerTile / 2
     );
 
     let color;
-    if (clampedScore >= 0.9) color = Color.WHITE;
-    else if (clampedScore >= 0.7) color = Color.YELLOW;
-    else if (clampedScore >= 0.5) color = Color.ORANGE;
-    else if (clampedScore >= 0.3) color = Color.RED;
-    else color = Color.DARKRED.withAlpha(0.9);
-
+    if (clampedScore >= 0.9) color = Color.WHITE.withAlpha(0.6);
+    else if (clampedScore >= 0.7) color = Color.YELLOW.withAlpha(0.6);
+    else if (clampedScore >= 0.5) color = Color.ORANGE.withAlpha(0.6);
+    else if (clampedScore >= 0.3) color = Color.RED.withAlpha(0.6);
+    else color = Color.DARKRED.withAlpha(0.5);
 
 
     const entity = viewer.entities.add({
@@ -130,10 +134,17 @@ useEffect(() => {
         outline: false,
         heightReference: HeightReference.CLAMP_TO_GROUND,
       },
+      description: `
+        <strong>Score:</strong> ${clampedScore.toFixed(3)}<br/>
+        <strong>Latitude:</strong> ${lat.toFixed(5)}<br/>
+        <strong>Longitude:</strong> ${lon.toFixed(5)}
+      `,
     });
+
 
     heatmapEntities.push(entity);
   });
+
 
   return () => {
     heatmapEntities.forEach((entity) => viewer.entities.remove(entity));
@@ -240,36 +251,62 @@ useEffect(() => {
 
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
-      {/* Selection Tool Icon */}
-        <div
-        onClick={() => {
-            setSelectMode((prev) => !prev);
-            setCenterCartographic(null);
-            setSelectionPlaced(false);
-        }}
+      
+      {/* Selection Tool Icon with Tooltip */}
+<div style={{ position: "absolute", top: 45, right: 7.5, zIndex: 10 }}>
+  <div
+    onClick={() => {
+      setSelectMode((prev) => !prev);
+      setCenterCartographic(null);
+      setSelectionPlaced(false);
+    }}
+    style={{
+      width: 32,
+      height: 32,
+      backgroundColor: selectMode ? "#8fd4dd" : "#2c2c2c", // dark default background
+      border: "1px solid #444", // matches Cesium tool buttons
+      borderRadius: 3,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 18,
+      position: "relative",
+      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.3)", // subtle elevation
+    }}
 
+    onMouseEnter={() => {
+      const tooltip = document.getElementById("toolTip");
+      if (tooltip) tooltip.style.display = "block";
+    }}
+    onMouseLeave={() => {
+      const tooltip = document.getElementById("toolTip");
+      if (tooltip) tooltip.style.display = "none";
+    }}
+  >
+    📍
+  </div>
+  <div
+    id="toolTip"
+    style={{
+      display: "none",
+      position: "absolute",
+      top: "40px",
+      right: 0,
+      backgroundColor: "#222",
+      color: "#fff",
+      padding: "6px 10px",
+      borderRadius: "6px",
+      fontFamily: "monospace",
+      fontSize: "12px",
+      width: "400px",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+    }}
+  >
+    Click to enter selection mode. Then, click on the globe to define a region. Adjust the size using the slider, and hit "Confirm" to start calculating food desert probability.
+  </div>
+</div>
 
-        title="Click to enter selection mode. Then click anywhere on the globe to place a square region. Adjust with the slider, then confirm."
-
-        style={{
-          position: "absolute",
-          top: 45, // 👈 appears below Cesium buttons
-          right: 7.5,
-          zIndex: 10,
-          width: 30,
-          height: 30,
-          backgroundColor: selectMode ? "#0ff" : "#fff",
-          border: "1px solid #ccc",
-          borderRadius: 4,
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 18,
-        }}
-      >
-        📍
-      </div>
 
       {(selectMode || selectionPlaced) && centerCartographic && (
   <div
