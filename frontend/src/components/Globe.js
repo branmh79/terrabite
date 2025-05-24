@@ -326,7 +326,7 @@ useEffect(() => {
     }}
   >
     <div>
-      Radius: {radiusKm} km
+      Side-length: {radiusKm} km
       <input
         type="range"
         min={1}
