@@ -105,7 +105,7 @@ useEffect(() => {
   // Optional: Clear previous heatmap tiles
   const heatmapEntities = [];
 
-  heatmapTiles.forEach(({ lat, lon, score }) => {
+  heatmapTiles.forEach(({ lat, lon, score, id }) => {
     const clampedScore = Math.min(1, Math.max(0, parseFloat(score)));
     if (isNaN(clampedScore)) return;
 
