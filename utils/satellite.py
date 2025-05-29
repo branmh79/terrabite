@@ -43,8 +43,8 @@ def fetch_rgb_image(lat_min, lon_min, lat_max, lon_max, scale=10):
         'region': region,
         'dimensions': 256,
         'format': 'png',
-        'min': 0.05,
-        'max': 0.25  # adjust this if tiles look too dark/light
+        'min': 0.1,
+        'max': 0.2  # adjust this if tiles look too dark/light
     })
 
 
