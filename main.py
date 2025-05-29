@@ -24,6 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+os.makedirs("temp_tiles", exist_ok=True)
 app.mount("/tiles", StaticFiles(directory="temp_tiles"), name="tiles")
 
 # === Tile Prediction Request Body ===
