@@ -137,8 +137,13 @@ useEffect(() => {
       description: `
         <strong>Score:</strong> ${clampedScore.toFixed(3)}<br/>
         <strong>Latitude:</strong> ${lat.toFixed(5)}<br/>
-        <strong>Longitude:</strong> ${lon.toFixed(5)}
+        <strong>Longitude:</strong> ${lon.toFixed(5)}<br/><br/>
+        <img src="https://terrabite.onrender.com/tiles/${id}.png" 
+            width="256" 
+            height="256" 
+            style="border-radius: 6px; box-shadow: 0 0 6px rgba(0,0,0,0.6);" />
       `,
+
     });
 
 

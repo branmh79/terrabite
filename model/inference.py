@@ -36,4 +36,4 @@ def predict_tile(image_array: np.ndarray) -> float:
         output = model(tensor)
         prob = torch.sigmoid(output).item()
 
-    return round(prob, 2)
+    return round(prob, 3)
