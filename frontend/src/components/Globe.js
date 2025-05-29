@@ -254,6 +254,19 @@ useEffect(() => {
     });
   }, [viewer, centerCartographic, radiusKm]);
 
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = `
+      .cesium-infoBox {
+        margin-top: 60px !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
       
