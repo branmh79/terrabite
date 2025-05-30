@@ -61,7 +61,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
-        scale = 5
+        scale = 7
 
     download_url = image.getDownloadURL({
         'region': region,
@@ -92,8 +92,6 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             f.write(response.content)
     else:
         raise RuntimeError(f"Unexpected content type: {content_type}")
-
-    print(f"✅ TIF saved to: {TIF_PATH}")
 
 # === Step 2: Tile TIF into 256x256 PNGs ===
 def tile_tif(input_tif_path, tile_size=256, output_dir=None):
