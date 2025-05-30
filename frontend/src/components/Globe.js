@@ -105,11 +105,13 @@ useEffect(() => {
   // Optional: Clear previous heatmap tiles
   const heatmapEntities = [];
 
-  heatmapTiles.forEach(({ lat, lon, score, id }) => {
-    const clampedScore = Math.min(1, Math.max(0, parseFloat(score)));
-    if (isNaN(clampedScore)) return;
+    heatmapTiles.forEach((tile) => {
+      const { lat, lon, score, id, tile_width_deg } = tile;
+      const clampedScore = Math.min(1, Math.max(0, parseFloat(score)));
+      if (isNaN(clampedScore)) return;
 
-    const degreesPerTile = tile.tile_width_deg || 0.0088;
+      const degreesPerTile = tile_width_deg || 0.0088;
+
 
 
 
