@@ -44,10 +44,11 @@ def read_root():
 def predict_region(req: RegionRequest):
     delta = req.radius_km / 111
     buffered_delta = delta * 1.05  # 5% extra padding
-    lat_min = req.latitude - buffered_delta
-    lat_max = req.latitude + buffered_delta
-    lon_min = req.longitude - buffered_delta
-    lon_max = req.longitude + buffered_delta
+    lat_min = max(-90, min(90, req.latitude - buffered_delta))
+    lat_max = max(-90, min(90, req.latitude + buffered_delta))
+    lon_min = max(-180, min(180, req.longitude - buffered_delta))
+    lon_max = max(-180, min(180, req.longitude + buffered_delta))
+
 
     session_id = str(uuid.uuid4())
     tile_folder = os.path.join("temp_tiles", "tiles", session_id)
@@ -59,8 +60,11 @@ def predict_region(req: RegionRequest):
         # ✅ Make tiles accessible at /tiles/ by copying them to public folder
         for tile in tile_data:
             filename = os.path.basename(tile["path"])
-            public_path = os.path.join("temp_tiles", "tiles", filename)
+            public_session_dir = os.path.join("temp_tiles", "tiles", session_id)
+            os.makedirs(public_session_dir, exist_ok=True)
+            public_path = os.path.join(public_session_dir, filename)
             shutil.copyfile(tile["path"], public_path)
+
 
     except Exception as e:
         print(f"❌ Failed to generate tiles: {e}")
@@ -73,7 +77,8 @@ def predict_region(req: RegionRequest):
             img = Image.open(tile["path"]).convert("RGB")
             img_array = np.array(img)
             score = predict_tile(img_array)
-            tile_id = os.path.basename(tile["path"]).replace(".png", "")
+            tile_id = f"{session_id}/{os.path.basename(tile['path']).replace('.png', '')}"
+
 
             with rasterio.open(tile["path"]) as src:
                 pixel_width_deg = abs(src.transform.a)  # degree/pixel
