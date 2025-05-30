@@ -63,7 +63,9 @@ def predict_region(req: RegionRequest):
             public_session_dir = os.path.join("temp_tiles", "tiles", session_id)
             os.makedirs(public_session_dir, exist_ok=True)
             public_path = os.path.join(public_session_dir, filename)
-            shutil.copyfile(tile["path"], public_path)
+            if tile["path"] != public_path:
+                shutil.copyfile(tile["path"], public_path)
+
 
 
     except Exception as e:
