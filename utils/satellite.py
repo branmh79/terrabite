@@ -75,10 +75,11 @@ def download_naip_tif(lat_min, lon_min, lat_max, lon_max):
 # === Step 2: Tile TIF into 256x256 PNGs
 def tile_tif(input_tif_path, tile_size=256):
     tile_id = 0
-    tile_paths = []
+    tile_data = []
 
     with rasterio.open(input_tif_path) as src:
         width, height = src.width, src.height
+        transform = src.transform
         print(f"🧩 Image size: {width} x {height}")
 
         for y in range(0, height, tile_size):
@@ -101,17 +102,27 @@ def tile_tif(input_tif_path, tile_size=256):
                     tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
 
                     tile_path = os.path.join(TILE_OUTPUT_DIR, f"tile_{tile_id:04d}.png")
-                    plt.imsave(tile_path, tile_rgb)
-                    tile_paths.append(tile_path)
+                    Image.fromarray(tile_rgb).save(tile_path)
+
+                    # Calculate lat/lon of tile center
+                    row_center = y + tile_size // 2
+                    col_center = x + tile_size // 2
+                    lon, lat = rasterio.transform.xy(transform, row_center, col_center)
+                    
+                    tile_data.append({
+                        "path": tile_path,
+                        "lat": lat,
+                        "lon": lon
+                    })
                     tile_id += 1
 
     print(f"✅ Tiling complete. {tile_id} tiles saved.")
-    return tile_paths
+    return tile_data
 
-# === Step 3: Unified function to generate tiles
 def generate_tiles(lat_min, lon_min, lat_max, lon_max):
     shutil.rmtree(TILE_OUTPUT_DIR, ignore_errors=True)
     os.makedirs(TILE_OUTPUT_DIR, exist_ok=True)
 
     download_naip_tif(lat_min, lon_min, lat_max, lon_max)
     return tile_tif(TIF_PATH)
+

@@ -39,37 +39,37 @@ def read_root():
 # === Prediction Endpoint ===
 @app.post("/predict")
 def predict_region(req: RegionRequest):
-    # Convert center + radius to bounding box
-    delta = req.radius_km / 111  # ~km to degrees
+    delta = req.radius_km / 111
     lat_min = req.latitude - delta
     lat_max = req.latitude + delta
     lon_min = req.longitude - delta
     lon_max = req.longitude + delta
 
     try:
-        tile_paths = generate_tiles(lat_min, lon_min, lat_max, lon_max)
+        tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max)
     except Exception as e:
         print(f"❌ Failed to generate tiles: {e}")
         return {"tiles": []}
 
     results = []
-    for path in tile_paths:
+    for tile in tile_data:
         try:
-            img = Image.open(path).convert("RGB")
+            img = Image.open(tile["path"]).convert("RGB")
             img_array = np.array(img)
-
             score = predict_tile(img_array)
-            filename = os.path.basename(path).replace(".png", "")
+            tile_id = os.path.basename(tile["path"]).replace(".png", "")
+
             results.append({
-                "lat": round((lat_min + lat_max) / 2, 5),  # or use tile center logic later
-                "lon": round((lon_min + lon_max) / 2, 5),
+                "lat": round(tile["lat"], 5),
+                "lon": round(tile["lon"], 5),
                 "score": score,
-                "id": filename
+                "id": tile_id
             })
         except Exception as e:
-            print(f"❌ Error processing tile {path}: {e}")
+            print(f"❌ Error processing tile {tile['path']}: {e}")
 
     return {"tiles": results}
+
 
 # === Background Cleanup Thread ===
 FOLDER = "temp_tiles"
