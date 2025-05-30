@@ -111,19 +111,23 @@ useEffect(() => {
       const { lat, lon, score, id, tile_width_deg } = tile;
       const clampedScore = Math.min(1, Math.max(0, parseFloat(score)));
       if (isNaN(clampedScore)) return;
-
-      const degreesPerTile = tile_width_deg || 0.0088;
-
+      const degreesPerTile = 0.0088; // ~1km tile width at equator
 
 
 
 
-    const rectangle = Rectangle.fromRadians(
-      CesiumMath.toRadians(lon - degreesPerTile / 2),
-      CesiumMath.toRadians(lat - degreesPerTile / 2),
-      CesiumMath.toRadians(lon + degreesPerTile / 2),
-      CesiumMath.toRadians(lat + degreesPerTile / 2)
+
+    const clampLat = (val) => Math.max(-89.9, Math.min(89.9, val));
+    const clampLon = (val) => (((val + 180) % 360 + 360) % 360) - 180;
+
+    const rectangle = Rectangle.fromDegrees(
+      clampLon(lon - degreesPerTile / 2),
+      clampLat(lat - degreesPerTile / 2),
+      clampLon(lon + degreesPerTile / 2),
+      clampLat(lat + degreesPerTile / 2)
     );
+
+
 
     let color;
     if (clampedScore >= 0.9) color = Color.WHITE.withAlpha(0.6);
@@ -221,7 +225,13 @@ useEffect(() => {
       centerCartographic.latitude,
       5
     );
+      const clampLat = (val) => Math.max(-89.9, Math.min(89.9, val));
+      const clampLon = (val) => (((val + 180) % 360 + 360) % 360) - 180;
 
+      const minLat = clampLat(lat - 0.05);
+      const maxLat = clampLat(lat + 0.05);
+      const minLon = clampLon(lon - 0.05);
+      const maxLon = clampLon(lon + 0.05);
     viewer.entities.add({
     position: center,
     point: {
@@ -245,18 +255,13 @@ useEffect(() => {
 
 
     rectangle: new RectangleGraphics({
-    coordinates: Rectangle.fromRadians(
-      degToRad(lon - radiusKm / 111),
-      degToRad(lat - radiusKm / 111),
-      degToRad(lon + radiusKm / 111),
-      degToRad(lat + radiusKm / 111)
-    ),
-
-    material: Color.CYAN.withAlpha(0.2),
-    outline: true,
-    outlineColor: Color.CYAN,
-    heightReference: HeightReference.CLAMP_TO_GROUND,
+      coordinates: Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat),
+      material: Color.CYAN.withAlpha(0.2),
+      outline: true,
+      outlineColor: Color.CYAN,
+      heightReference: HeightReference.CLAMP_TO_GROUND,
     }),
+
 
     });
   }, [viewer, centerCartographic, radiusKm]);
@@ -355,7 +360,7 @@ useEffect(() => {
       <input
         type="range"
         min={1}
-        max={10}
+        max={5}
         value={radiusKm}
         onChange={(e) => setRadiusKm(parseInt(e.target.value))}
         style={{ width: "120px", marginLeft: "10px" }}
