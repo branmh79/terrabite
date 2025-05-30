@@ -55,7 +55,9 @@ def predict_region(req: RegionRequest):
     results = []
     for path in tile_paths:
         try:
-            img_array = np.array(Image.open(path))
+            img = Image.open(path).convert("RGB")
+            img_array = np.array(img)
+
             score = predict_tile(img_array)
             filename = os.path.basename(path).replace(".png", "")
             results.append({
