@@ -7,7 +7,8 @@ import os
 import requests
 import zipfile
 import shutil
-import matplotlib.pyplot as plt
+from shapely.geometry import Point, shape
+import geopandas as gpd
 
 # === Authenticate with Service Account ===
 SERVICE_ACCOUNT = 'terrabite-earthengine@food-desert-app.iam.gserviceaccount.com'
@@ -25,19 +26,49 @@ TIF_PATH = os.path.join(TEMP_DIR, 'exported_naip.tif')
 TILE_OUTPUT_DIR = os.path.join(TEMP_DIR, 'tiles')
 os.makedirs(TILE_OUTPUT_DIR, exist_ok=True)
 
-# === Step 1: Export and download TIF (supports .zip or direct .tif)
-def download_naip_tif(lat_min, lon_min, lat_max, lon_max):
+# === US bounding box for NAIP coverage ===
+US_BOUNDS = [-125, 24, -66, 50]  # Roughly the contiguous US
+
+def is_in_us(lat, lon):
+    return US_BOUNDS[1] <= lat <= US_BOUNDS[3] and US_BOUNDS[0] <= lon <= US_BOUNDS[2]
+
+def mask_s2_clouds(image):
+    qa = image.select('QA60')
+    cloud_bit_mask = 1 << 10
+    cirrus_bit_mask = 1 << 11
+    mask = qa.bitwiseAnd(cloud_bit_mask).eq(0).And(qa.bitwiseAnd(cirrus_bit_mask).eq(0))
+    return image.updateMask(mask).divide(10000)
+
+# === Step 1: Export and download TIF ===
+def download_tif(lat_min, lon_min, lat_max, lon_max):
     region = ee.Geometry.Rectangle([lon_min, lat_min, lon_max, lat_max])
-    image = ee.ImageCollection("USDA/NAIP/DOQQ") \
-        .filterBounds(region) \
-        .filterDate('2021-01-01', '2023-12-31') \
-        .mosaic() \
-        .select(['R', 'G', 'B']) \
-        .clip(region)
+    center_lat = (lat_min + lat_max) / 2
+    center_lon = (lon_min + lon_max) / 2
+
+    if is_in_us(center_lat, center_lon):
+        print("📍 Using NAIP imagery")
+        image = ee.ImageCollection("USDA/NAIP/DOQQ") \
+            .filterBounds(region) \
+            .filterDate('2021-01-01', '2023-12-31') \
+            .mosaic() \
+            .select(['R', 'G', 'B']) \
+            .clip(region)
+        scale = 4
+    else:
+        print("🌍 Using Sentinel-2 SR Harmonized imagery")
+        image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED") \
+            .filterBounds(region) \
+            .filterDate('2021-01-01', '2023-12-31') \
+            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)) \
+            .map(mask_s2_clouds) \
+            .median() \
+            .select(['B4', 'B3', 'B2']) \
+            .clip(region)
+        scale = 10
 
     download_url = image.getDownloadURL({
         'region': region,
-        'scale': 4,
+        'scale': scale,
         'filePerBand': False,
         'format': 'GeoTIFF'
     })
@@ -49,30 +80,25 @@ def download_naip_tif(lat_min, lon_min, lat_max, lon_max):
     content_type = response.headers.get("Content-Type", "")
 
     if "zip" in content_type:
-        zip_path = os.path.join(TEMP_DIR, 'naip_download.zip')
+        zip_path = os.path.join(TEMP_DIR, 'download.zip')
         with open(zip_path, 'wb') as f:
             f.write(response.content)
-
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(TEMP_DIR)
-
-        # Find and rename .tif
         for file in os.listdir(TEMP_DIR):
             if file.endswith('.tif'):
                 shutil.move(os.path.join(TEMP_DIR, file), TIF_PATH)
                 break
         os.remove(zip_path)
-
     elif "tiff" in content_type or response.content[:4] == b'MM\x00*':
         with open(TIF_PATH, 'wb') as f:
             f.write(response.content)
-
     else:
         raise RuntimeError(f"Unexpected content type: {content_type}")
 
     print(f"✅ TIF saved to: {TIF_PATH}")
 
-# === Step 2: Tile TIF into 256x256 PNGs
+# === Step 2: Tile TIF into 256x256 PNGs ===
 def tile_tif(input_tif_path, tile_size=256):
     tile_id = 0
     tile_data = []
@@ -119,10 +145,9 @@ def tile_tif(input_tif_path, tile_size=256):
     print(f"✅ Tiling complete. {tile_id} tiles saved.")
     return tile_data
 
+# === Step 3: Unified Function ===
 def generate_tiles(lat_min, lon_min, lat_max, lon_max):
     shutil.rmtree(TILE_OUTPUT_DIR, ignore_errors=True)
     os.makedirs(TILE_OUTPUT_DIR, exist_ok=True)
-
-    download_naip_tif(lat_min, lon_min, lat_max, lon_max)
+    download_tif(lat_min, lon_min, lat_max, lon_max)
     return tile_tif(TIF_PATH)
-

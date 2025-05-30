@@ -39,7 +39,7 @@ def read_root():
 # === Prediction Endpoint ===
 @app.post("/predict")
 def predict_region(req: RegionRequest):
-    delta = req.radius_km / 111
+    delta = req.radius_km / 111  # ~1° ≈ 111 km
     lat_min = req.latitude - delta
     lat_max = req.latitude + delta
     lon_min = req.longitude - delta
@@ -69,7 +69,6 @@ def predict_region(req: RegionRequest):
             print(f"❌ Error processing tile {tile['path']}: {e}")
 
     return {"tiles": results}
-
 
 # === Background Cleanup Thread ===
 FOLDER = "temp_tiles"
