@@ -57,15 +57,6 @@ def predict_region(req: RegionRequest):
     try:
         tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max, tile_folder)
 
-        # ✅ Make tiles accessible at /tiles/ by copying them to public folder
-        for tile in tile_data:
-            filename = os.path.basename(tile["path"])
-            public_session_dir = os.path.join("temp_tiles", "tiles", session_id)
-            os.makedirs(public_session_dir, exist_ok=True)
-            public_path = os.path.join(public_session_dir, filename)
-            if tile["path"] != public_path:
-                shutil.copyfile(tile["path"], public_path)
-
 
 
     except Exception as e:
