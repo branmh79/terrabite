@@ -109,7 +109,7 @@ useEffect(() => {
     const clampedScore = Math.min(1, Math.max(0, parseFloat(score)));
     if (isNaN(clampedScore)) return;
 
-    const degreesPerTile = 0.0081; // ~0.0081 degrees = ~900m at equator ≈ 256px tile at 4m scale
+    const degreesPerTile = 0.0090;
 
 
 
