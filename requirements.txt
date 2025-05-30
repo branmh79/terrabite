@@ -6,5 +6,6 @@ pillow
 rasterio
 numpy
 earthengine-api
-fastapi[all]
 matplotlib
+requests
+shapely
