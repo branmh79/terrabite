@@ -11,6 +11,7 @@ import os
 import time
 import threading
 from datetime import datetime
+import uuid
 
 # === FastAPI Setup ===
 app = FastAPI()
@@ -39,14 +40,20 @@ def read_root():
 # === Prediction Endpoint ===
 @app.post("/predict")
 def predict_region(req: RegionRequest):
-    delta = req.radius_km / 111  # ~1° ≈ 111 km
-    lat_min = req.latitude - delta
-    lat_max = req.latitude + delta
-    lon_min = req.longitude - delta
-    lon_max = req.longitude + delta
+    delta = req.radius_km / 111
+    buffered_delta = delta * 1.05  # 5% extra padding
+    lat_min = req.latitude - buffered_delta
+    lat_max = req.latitude + buffered_delta
+    lon_min = req.longitude - buffered_delta
+    lon_max = req.longitude + buffered_delta
+
+    session_id = str(uuid.uuid4())
+    tile_folder = os.path.join("temp_tiles", "tiles", session_id)
+    os.makedirs(tile_folder, exist_ok=True)
 
     try:
-        tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max)
+        tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max, tile_folder)
+
     except Exception as e:
         print(f"❌ Failed to generate tiles: {e}")
         return {"tiles": []}
@@ -59,12 +66,16 @@ def predict_region(req: RegionRequest):
             score = predict_tile(img_array)
             tile_id = os.path.basename(tile["path"]).replace(".png", "")
 
+            tile_deg_width = 256 * 10 / 111000  # 256 pixels * 10m/pixel / meters per degree ≈ 0.0023 deg
+
             results.append({
                 "lat": round(tile["lat"], 5),
                 "lon": round(tile["lon"], 5),
                 "score": score,
-                "id": tile_id
+                "id": tile_id,
+                "tile_width_deg": tile_deg_width
             })
+
         except Exception as e:
             print(f"❌ Error processing tile {tile['path']}: {e}")
 

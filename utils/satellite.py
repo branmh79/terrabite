@@ -22,9 +22,6 @@ except Exception as e:
 
 # === Paths ===
 TEMP_DIR = './temp_tiles'
-TIF_PATH = os.path.join(TEMP_DIR, 'exported_naip.tif')
-TILE_OUTPUT_DIR = os.path.join(TEMP_DIR, 'tiles')
-os.makedirs(TILE_OUTPUT_DIR, exist_ok=True)
 
 # === US bounding box for NAIP coverage ===
 US_BOUNDS = [-125, 24, -66, 50]  # Roughly the contiguous US
@@ -40,7 +37,7 @@ def mask_s2_clouds(image):
     return image.updateMask(mask).divide(10000)
 
 # === Step 1: Export and download TIF ===
-def download_tif(lat_min, lon_min, lat_max, lon_max):
+def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
     region = ee.Geometry.Rectangle([lon_min, lat_min, lon_max, lat_max])
     center_lat = (lat_min + lat_max) / 2
     center_lon = (lon_min + lon_max) / 2
@@ -64,7 +61,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max):
             .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
-        scale = 10
+        scale = 5
 
     download_url = image.getDownloadURL({
         'region': region,
@@ -87,11 +84,11 @@ def download_tif(lat_min, lon_min, lat_max, lon_max):
             zip_ref.extractall(TEMP_DIR)
         for file in os.listdir(TEMP_DIR):
             if file.endswith('.tif'):
-                shutil.move(os.path.join(TEMP_DIR, file), TIF_PATH)
+                shutil.move(os.path.join(TEMP_DIR, file), tif_path)
                 break
         os.remove(zip_path)
     elif "tiff" in content_type or response.content[:4] == b'MM\x00*':
-        with open(TIF_PATH, 'wb') as f:
+        with open(tif_path, 'wb') as f:
             f.write(response.content)
     else:
         raise RuntimeError(f"Unexpected content type: {content_type}")
@@ -99,7 +96,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max):
     print(f"✅ TIF saved to: {TIF_PATH}")
 
 # === Step 2: Tile TIF into 256x256 PNGs ===
-def tile_tif(input_tif_path, tile_size=256):
+def tile_tif(input_tif_path, tile_size=256, output_dir=None):
     tile_id = 0
     tile_data = []
 
@@ -118,8 +115,9 @@ def tile_tif(input_tif_path, tile_size=256):
 
                     for b in range(tile_rgb.shape[2]):
                         band = tile_rgb[:, :, b]
-                        min_val = band.min()
-                        max_val = band.max()
+                        min_val = np.percentile(band, 1)
+                        max_val = np.percentile(band, 99)
+                        max_val = min(max_val, 4000)  # Cap max value at 4000 for Sentinel
                         if max_val > min_val:
                             tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val) * 255
                         else:
@@ -127,7 +125,8 @@ def tile_tif(input_tif_path, tile_size=256):
 
                     tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
 
-                    tile_path = os.path.join(TILE_OUTPUT_DIR, f"tile_{tile_id:04d}.png")
+                    tile_path = os.path.join(output_dir, f"tile_{tile_id:04d}.png")
+
                     Image.fromarray(tile_rgb).save(tile_path)
 
                     # Calculate lat/lon of tile center
@@ -146,8 +145,11 @@ def tile_tif(input_tif_path, tile_size=256):
     return tile_data
 
 # === Step 3: Unified Function ===
-def generate_tiles(lat_min, lon_min, lat_max, lon_max):
-    shutil.rmtree(TILE_OUTPUT_DIR, ignore_errors=True)
-    os.makedirs(TILE_OUTPUT_DIR, exist_ok=True)
-    download_tif(lat_min, lon_min, lat_max, lon_max)
-    return tile_tif(TIF_PATH)
+def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
+    shutil.rmtree(output_dir, ignore_errors=True)
+    os.makedirs(output_dir, exist_ok=True)
+    
+    tif_path = os.path.join(output_dir, 'exported_naip.tif')
+    download_tif(lat_min, lon_min, lat_max, lon_max, tif_path)
+    
+    return tile_tif(tif_path, tile_size=256, output_dir=output_dir)
