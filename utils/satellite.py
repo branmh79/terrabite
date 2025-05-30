@@ -25,7 +25,7 @@ TIF_PATH = os.path.join(TEMP_DIR, 'exported_naip.tif')
 TILE_OUTPUT_DIR = os.path.join(TEMP_DIR, 'tiles')
 os.makedirs(TILE_OUTPUT_DIR, exist_ok=True)
 
-# === Step 1: Export full-resolution TIF using getDownloadURL ===
+# === Step 1: Export and download TIF (supports .zip or direct .tif)
 def download_naip_tif(lat_min, lon_min, lat_max, lon_max):
     region = ee.Geometry.Rectangle([lon_min, lat_min, lon_max, lat_max])
     image = ee.ImageCollection("USDA/NAIP/DOQQ") \
@@ -37,34 +37,42 @@ def download_naip_tif(lat_min, lon_min, lat_max, lon_max):
 
     download_url = image.getDownloadURL({
         'region': region,
-        'scale': 3,
+        'scale': 4,
         'filePerBand': False,
         'format': 'GeoTIFF'
     })
 
-    zip_path = os.path.join(TEMP_DIR, 'naip_download.zip')
     response = requests.get(download_url)
     if response.status_code != 200:
         raise RuntimeError(f"Download failed: {response.status_code}")
 
-    with open(zip_path, 'wb') as f:
-        f.write(response.content)
+    content_type = response.headers.get("Content-Type", "")
 
-    # Unzip to get the .tif
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(TEMP_DIR)
+    if "zip" in content_type:
+        zip_path = os.path.join(TEMP_DIR, 'naip_download.zip')
+        with open(zip_path, 'wb') as f:
+            f.write(response.content)
 
-    # Find and rename TIF
-    for file in os.listdir(TEMP_DIR):
-        if file.endswith('.tif'):
-            extracted_path = os.path.join(TEMP_DIR, file)
-            shutil.move(extracted_path, TIF_PATH)
-            break
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(TEMP_DIR)
 
-    os.remove(zip_path)
-    print(f"✅ TIF downloaded and saved to: {TIF_PATH}")
+        # Find and rename .tif
+        for file in os.listdir(TEMP_DIR):
+            if file.endswith('.tif'):
+                shutil.move(os.path.join(TEMP_DIR, file), TIF_PATH)
+                break
+        os.remove(zip_path)
 
-# === Step 2: Tile TIF into 256x256 PNGs ===
+    elif "tiff" in content_type or response.content[:4] == b'MM\x00*':
+        with open(TIF_PATH, 'wb') as f:
+            f.write(response.content)
+
+    else:
+        raise RuntimeError(f"Unexpected content type: {content_type}")
+
+    print(f"✅ TIF saved to: {TIF_PATH}")
+
+# === Step 2: Tile TIF into 256x256 PNGs
 def tile_tif(input_tif_path, tile_size=256):
     tile_id = 0
     tile_paths = []
@@ -100,12 +108,10 @@ def tile_tif(input_tif_path, tile_size=256):
     print(f"✅ Tiling complete. {tile_id} tiles saved.")
     return tile_paths
 
-# === Step 3: Unified Function ===
+# === Step 3: Unified function to generate tiles
 def generate_tiles(lat_min, lon_min, lat_max, lon_max):
-    # Clear existing tiles
     shutil.rmtree(TILE_OUTPUT_DIR, ignore_errors=True)
     os.makedirs(TILE_OUTPUT_DIR, exist_ok=True)
 
-    # Download and tile
     download_naip_tif(lat_min, lon_min, lat_max, lon_max)
     return tile_tif(TIF_PATH)
