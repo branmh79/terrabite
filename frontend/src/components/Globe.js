@@ -28,7 +28,6 @@ export default function Globe() {
     const [selectionPlaced, setSelectionPlaced] = useState(false);
 const [heatmapTiles, setHeatmapTiles] = useState([]);
 const [isLoading, setIsLoading] = useState(false);
-const [hoveredEntity, setHoveredEntity] = useState(null);
 
 const handleRegionConfirm = async () => {
   if (!centerCartographic) return;
@@ -129,15 +128,12 @@ useEffect(() => {
 
 
     const entity = viewer.entities.add({
-    id: `${lat},${lon}`,
-    rectangle: {
-      coordinates: rectangle,
-      material: color,
-      outline: false,
-      heightReference: HeightReference.NONE, // ✅ allow lifting
-      height: 0, // initial height (flat)
-    },
-
+      rectangle: {
+        coordinates: rectangle,
+        material: color,
+        outline: false,
+        heightReference: HeightReference.CLAMP_TO_GROUND,
+      },
       description: `
         <strong>Score:</strong> ${clampedScore.toFixed(3)}<br/>
         <strong>Latitude:</strong> ${lat.toFixed(5)}<br/>
@@ -159,28 +155,6 @@ useEffect(() => {
     heatmapEntities.forEach((entity) => viewer.entities.remove(entity));
   };
 }, [viewer, heatmapTiles]);
-useEffect(() => {
-  if (!viewer) return;
-
-  const animateHeights = () => {
-    viewer.entities.values.forEach(entity => {
-      const rectangle = entity.rectangle;
-      if (rectangle && rectangle.height !== undefined) {
-        const isHovered = hoveredEntity === entity;
-        const target = isHovered ? 10 : 0;
-        const current = rectangle.height.getValue();
-        const speed = 0.2;
-        const newHeight = current + (target - current) * speed;
-        rectangle.height = newHeight;
-      }
-    });
-  };
-
-  viewer.clock.onTick.addEventListener(animateHeights);
-  return () => {
-    viewer.clock.onTick.removeEventListener(animateHeights);
-  };
-}, [viewer, hoveredEntity]);
 
   useEffect(() => {
     if (!viewer) return;
@@ -226,35 +200,6 @@ useEffect(() => {
         viewer.canvas.style.cursor = "default";
     };
     }, [viewer, selectMode]);
-
-    useEffect(() => {
-      if (!viewer) return;
-
-      const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
-
-      handler.setInputAction((movement) => {
-        const pickedObject = viewer.scene.pick(movement.endPosition);
-        const newHovered = pickedObject?.id;
-
-        // Un-hover previous tile
-        if (hoveredEntity && hoveredEntity !== newHovered) {
-          hoveredEntity.rectangle.height = undefined;
-          viewer.canvas.style.cursor = "default";
-          setHoveredEntity(null);
-        }
-
-        // Hover over new tile
-        if (newHovered && newHovered.rectangle && newHovered !== hoveredEntity) {
-          newHovered.rectangle.height = 10; // Lift it slightly
-          viewer.canvas.style.cursor = "pointer";
-          setHoveredEntity(newHovered);
-        }
-      }, ScreenSpaceEventType.MOUSE_MOVE);
-
-      return () => {
-        handler.destroy();
-      };
-    }, [viewer, hoveredEntity]);
 
   // Remove previous marker each update
   useEffect(() => {

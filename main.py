@@ -1,14 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
-from utils.geo import get_tile_grid
-from utils.satellite import fetch_rgb_image
+from utils.satellite import generate_tiles
 from model.inference import predict_tile
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from hashlib import md5
 from PIL import Image
+import numpy as np
 import os
 import time
 import threading
@@ -24,8 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.makedirs("temp_tiles", exist_ok=True)
-app.mount("/tiles", StaticFiles(directory="temp_tiles"), name="tiles")
+os.makedirs("temp_tiles/tiles", exist_ok=True)
+app.mount("/tiles", StaticFiles(directory="temp_tiles/tiles"), name="tiles")
 
 # === Tile Prediction Request Body ===
 class RegionRequest(BaseModel):
@@ -41,40 +39,35 @@ def read_root():
 # === Prediction Endpoint ===
 @app.post("/predict")
 def predict_region(req: RegionRequest):
-    tiles = get_tile_grid(req.latitude, req.longitude, req.radius_km)
+    # Convert center + radius to bounding box
+    delta = req.radius_km / 111  # ~km to degrees
+    lat_min = req.latitude - delta
+    lat_max = req.latitude + delta
+    lon_min = req.longitude - delta
+    lon_max = req.longitude + delta
 
-    def process_tile(tile):
+    try:
+        tile_paths = generate_tiles(lat_min, lon_min, lat_max, lon_max)
+    except Exception as e:
+        print(f"❌ Failed to generate tiles: {e}")
+        return {"tiles": []}
+
+    results = []
+    for path in tile_paths:
         try:
-            img_array = fetch_rgb_image(
-                tile["lat_min"], tile["lon_min"],
-                tile["lat_max"], tile["lon_max"]
-            )
+            img_array = np.array(Image.open(path))
             score = predict_tile(img_array)
-
-            # Generate image ID from coordinates
-            image_id = md5(f"{tile['center_lat']}_{tile['center_lon']}".encode()).hexdigest()
-            Image.fromarray(img_array).save(f"temp_tiles/{image_id}.png")
-
+            filename = os.path.basename(path).replace(".png", "")
+            results.append({
+                "lat": round((lat_min + lat_max) / 2, 5),  # or use tile center logic later
+                "lon": round((lon_min + lon_max) / 2, 5),
+                "score": score,
+                "id": filename
+            })
         except Exception as e:
-            print(f"❌ Tile error: {e}")
-            score = -1
-            image_id = "error"
+            print(f"❌ Error processing tile {path}: {e}")
 
-        return {
-            "lat": round(tile["center_lat"], 5),
-            "lon": round(tile["center_lon"], 5),
-            "score": score,
-            "id": image_id
-        }
-
-    predictions = []
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(process_tile, tile) for tile in tiles]
-        for future in as_completed(futures):
-            predictions.append(future.result())
-
-    return {"tiles": predictions}
-
+    return {"tiles": results}
 
 # === Background Cleanup Thread ===
 FOLDER = "temp_tiles"
@@ -90,17 +83,18 @@ def clean_folder():
         now = time.time()
         deleted_count = 0
 
-        for filename in os.listdir(FOLDER):
-            path = os.path.join(FOLDER, filename)
-            if os.path.isfile(path):
-                age = now - os.path.getmtime(path)
-                if age > MAX_AGE_SECONDS:
-                    try:
-                        os.remove(path)
-                        deleted_count += 1
-                        log(f"🧹 Deleted {filename}")
-                    except Exception as e:
-                        log(f"❌ Error deleting {filename}: {e}")
+        for root, _, files in os.walk(FOLDER):
+            for filename in files:
+                path = os.path.join(root, filename)
+                if os.path.isfile(path):
+                    age = now - os.path.getmtime(path)
+                    if age > MAX_AGE_SECONDS:
+                        try:
+                            os.remove(path)
+                            deleted_count += 1
+                            log(f"🧹 Deleted {filename}")
+                        except Exception as e:
+                            log(f"❌ Error deleting {filename}: {e}")
 
         if deleted_count == 0:
             log("🟢 No files to delete this cycle.")
