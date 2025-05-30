@@ -9,3 +9,6 @@ earthengine-api
 matplotlib
 requests
 shapely
+geopandas
+scikit-image
+scipy
