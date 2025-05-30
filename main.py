@@ -12,6 +12,8 @@ import time
 import threading
 from datetime import datetime
 import uuid
+import shutil
+import rasterio
 
 # === FastAPI Setup ===
 app = FastAPI()
