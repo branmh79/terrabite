@@ -16,6 +16,8 @@ import {
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useEffect, useRef, useState } from "react";
 
+const degToRad = (deg) => deg * Math.PI / 180;
+
 Ion.defaultAccessToken =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMzEwY2M1ZS03NThmLTQwYmQtOGViZS0wMzlmYjVjYTc0NTUiLCJpZCI6MzA1NDI2LCJpYXQiOjE3NDc5NjkwMzJ9.Z4nYi_tZpHiysag2soHdOMih6nELUaFDJ6BfujbDCwI";
 
@@ -243,12 +245,13 @@ useEffect(() => {
 
 
     rectangle: new RectangleGraphics({
-    coordinates: Rectangle.fromDegrees(
-        lon - radiusKm / 111,
-        lat - radiusKm / 111,
-        lon + radiusKm / 111,
-        lat + radiusKm / 111
+    coordinates: Rectangle.fromRadians(
+      degToRad(lon - radiusKm / 111),
+      degToRad(lat - radiusKm / 111),
+      degToRad(lon + radiusKm / 111),
+      degToRad(lat + radiusKm / 111)
     ),
+
     material: Color.CYAN.withAlpha(0.2),
     outline: true,
     outlineColor: Color.CYAN,
