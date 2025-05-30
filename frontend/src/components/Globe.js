@@ -348,7 +348,7 @@ useEffect(() => {
       <input
         type="range"
         min={1}
-        max={20}
+        max={10}
         value={radiusKm}
         onChange={(e) => setRadiusKm(parseInt(e.target.value))}
         style={{ width: "120px", marginLeft: "10px" }}

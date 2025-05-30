@@ -37,7 +37,7 @@ def download_naip_tif(lat_min, lon_min, lat_max, lon_max):
 
     download_url = image.getDownloadURL({
         'region': region,
-        'scale': 1,
+        'scale': 3,
         'filePerBand': False,
         'format': 'GeoTIFF'
     })
