@@ -54,9 +54,16 @@ def predict_region(req: RegionRequest):
     try:
         tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max, tile_folder)
 
+        # ✅ Make tiles accessible at /tiles/ by copying them to public folder
+        for tile in tile_data:
+            filename = os.path.basename(tile["path"])
+            public_path = os.path.join("temp_tiles", "tiles", filename)
+            shutil.copyfile(tile["path"], public_path)
+
     except Exception as e:
         print(f"❌ Failed to generate tiles: {e}")
         return {"tiles": []}
+
 
     results = []
     for tile in tile_data:
@@ -66,7 +73,10 @@ def predict_region(req: RegionRequest):
             score = predict_tile(img_array)
             tile_id = os.path.basename(tile["path"]).replace(".png", "")
 
-            tile_deg_width = 256 * 10 / 111000  # 256 pixels * 10m/pixel / meters per degree ≈ 0.0023 deg
+            with rasterio.open(tile["path"]) as src:
+                pixel_width_deg = abs(src.transform.a)  # degree/pixel
+            tile_deg_width = pixel_width_deg * 256
+
 
             results.append({
                 "lat": round(tile["lat"], 5),
