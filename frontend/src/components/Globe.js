@@ -116,11 +116,11 @@ useEffect(() => {
 
 
 
-    const rectangle = Rectangle.fromDegrees(
-      lon - degreesPerTile / 2,
-      lat - degreesPerTile / 2,
-      lon + degreesPerTile / 2,
-      lat + degreesPerTile / 2
+    const rectangle = Rectangle.fromRadians(
+      CesiumMath.toRadians(lon - degreesPerTile / 2),
+      CesiumMath.toRadians(lat - degreesPerTile / 2),
+      CesiumMath.toRadians(lon + degreesPerTile / 2),
+      CesiumMath.toRadians(lat + degreesPerTile / 2)
     );
 
     let color;
