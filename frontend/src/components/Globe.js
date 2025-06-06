@@ -157,7 +157,7 @@ useEffect(() => {
 
     });
 
-
+    entity.isHeatmapTile = true;
     heatmapEntities.push(entity);
   });
 
@@ -166,6 +166,40 @@ useEffect(() => {
     heatmapEntities.forEach((entity) => viewer.entities.remove(entity));
   };
 }, [viewer, heatmapTiles]);
+
+
+useEffect(() => {
+  if (!viewer) return;
+
+  let previousHovered = null;
+
+  const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+
+  handler.setInputAction((movement) => {
+    const picked = viewer.scene.pick(movement.endPosition);
+    const entity = picked?.id;
+
+    // Restore previously hovered tile if different or if cursor left
+    if (previousHovered && previousHovered !== entity) {
+      if (previousHovered.rectangle && previousHovered.isHeatmapTile) {
+        previousHovered.rectangle.extrudedHeight = undefined;
+      }
+      previousHovered = null;
+    }
+
+    // Apply lift only to valid heatmap tile
+    if (entity && entity.rectangle && entity.isHeatmapTile) {
+      if (entity !== previousHovered) {
+        entity.rectangle.extrudedHeight = 100;
+        previousHovered = entity;
+      }
+    }
+  }, ScreenSpaceEventType.MOUSE_MOVE);
+
+  return () => handler.destroy();
+}, [viewer]);
+
+
 
   useEffect(() => {
     if (!viewer) return;
