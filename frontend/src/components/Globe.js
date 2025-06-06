@@ -131,10 +131,10 @@ useEffect(() => {
 
 
     let color;
-    if (clampedScore >= 0.9) color = Color.WHITE.withAlpha(0.6);
-    else if (clampedScore >= 0.7) color = Color.YELLOW.withAlpha(0.6);
-    else if (clampedScore >= 0.5) color = Color.ORANGE.withAlpha(0.6);
-    else if (clampedScore >= 0.3) color = Color.RED.withAlpha(0.6);
+    if (clampedScore >= 0.9) color = Color.WHITE.withAlpha(0.5);
+    else if (clampedScore >= 0.7) color = Color.YELLOW.withAlpha(0.5);
+    else if (clampedScore >= 0.5) color = Color.ORANGE.withAlpha(0.4);
+    else if (clampedScore >= 0.3) color = Color.RED.withAlpha(0.4);
     else color = Color.DARKRED.withAlpha(0.5);
 
 
@@ -251,7 +251,8 @@ useEffect(() => {
 
     rectangle: new RectangleGraphics({
       coordinates: Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat),
-      material: Color.CYAN.withAlpha(0.2),
+      material: Color.fromCssColorString("#00cccc").withAlpha(0.4),
+
       outline: true,
       outlineColor: Color.CYAN,
       heightReference: HeightReference.CLAMP_TO_GROUND,
