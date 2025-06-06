@@ -15,6 +15,7 @@ import {
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useEffect, useRef, useState } from "react";
+import { IonImageryProvider } from "cesium";
 
 const degToRad = (deg) => deg * Math.PI / 180;
 
@@ -169,19 +170,13 @@ useEffect(() => {
   useEffect(() => {
     if (!viewer) return;
 
-    const loadTileset = async () => {
-      const tileset = await Cesium3DTileset.fromIonAssetId(2275207);
-      viewer.scene.primitives.add(tileset);
-      await viewer.zoomTo(tileset);
-
-      viewer.scene.globe.maximumScreenSpaceError = 1.0;
-      viewer.scene.highDynamicRange = true;
-      viewer.resolutionScale = window.devicePixelRatio;
-      viewer.scene.fog.enabled = false;
-      viewer.scene.skyAtmosphere.brightnessShift = 0.3;
+    const addBaseImagery = async () => {
+      const imageryLayer = await IonImageryProvider.fromAssetId(3); // Bing Aerial with Labels
+      viewer.imageryLayers.addImageryProvider(imageryLayer);
     };
 
-    loadTileset();
+    addBaseImagery();
+
   }, [viewer]);
 
     useEffect(() => {
