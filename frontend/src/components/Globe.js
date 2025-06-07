@@ -44,6 +44,7 @@ const handleRegionConfirm = async () => {
     latitude: lat,
     longitude: lon,
     radius_km: radiusKm,
+    session_id: sessionId,
   };
 
   console.log("Sending to backend:", region);

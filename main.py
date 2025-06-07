@@ -36,6 +36,7 @@ class RegionRequest(BaseModel):
     latitude: float
     longitude: float
     radius_km: float
+    session_id: str
 
 # === Root Endpoint ===
 @app.get("/")
@@ -53,7 +54,7 @@ def predict_region(req: RegionRequest):
     lon_max = max(-180, min(180, req.longitude + buffered_delta))
 
 
-    session_id = str(uuid.uuid4())
+    session_id = req.session_id
     tile_folder = os.path.join("temp_tiles", "tiles", session_id)
     os.makedirs(tile_folder, exist_ok=True)
     progress[session_id] = {
