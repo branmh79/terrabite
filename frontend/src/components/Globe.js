@@ -389,7 +389,7 @@ useEffect(() => {
       />
     </div>
     <button
-    onClick={async () => {
+onClick={async () => {
   setIsLoading(true);
   setProgressText("Submitting request...");
   setProgress({ completed: 0, total: 1 }); // temp placeholder
@@ -408,33 +408,33 @@ useEffect(() => {
     session_id: sessionId,
   };
 
-try {
-  setProgress({ completed: 0, total: 0 }); // 👈 reset with 0s
-  setProgressText("Tiling imagery...");
-  
-  const pollProgress = async () => {
-    try {
-      const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
-      const data = await res.json();
-      setProgress(data);
-      setProgressText(data.stage || "Processing...");
-      if (data.completed < data.total) {
-        setTimeout(pollProgress, 1000);
+  try {
+    setProgressText("Tiling imagery...");
+    
+    await handleRegionConfirm(region); // 👈 FIRST wait for backend to finish setup
+
+    const pollProgress = async () => {
+      try {
+        const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
+        const data = await res.json();
+        setProgress(data);
+        setProgressText(data.stage || "Processing...");
+        if (data.completed < data.total) {
+          setTimeout(pollProgress, 1000);
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
       }
-    } catch (err) {
-      console.error("Polling error:", err);
-    }
-  };
+    };
 
-  pollProgress(); // 🟢 Start polling right away
-  await handleRegionConfirm(region); // 🕒 Backend begins tiling & predicting
-} catch (err) {
-  console.error("❌ Prediction error:", err);
-} finally {
-  setIsLoading(false);
-}
-
+    pollProgress(); // 👈 THEN begin polling
+  } catch (err) {
+    console.error("❌ Prediction error:", err);
+  } finally {
+    setIsLoading(false);
+  }
 }}
+
 
 
 
