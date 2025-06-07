@@ -35,7 +35,6 @@ const [progress, setProgress] = useState(null);
 const [progressText, setProgressText] = useState("Initializing...");
 
 const handleRegionConfirm = async (region) => {
-  if (!centerCartographic) return;
 
   console.log("Sending to backend:", region);
 
@@ -391,50 +390,50 @@ useEffect(() => {
     </div>
     <button
     onClick={async () => {
-      setIsLoading(true);
-      setProgress({ completed: 0, total: 1 }); // start with dummy values
-      setProgressText("Submitting request...");
-      setSelectionPlaced(false);
-      setSelectMode(false);
-      setCenterCartographic(null);
-      if (viewer) viewer.entities.removeAll();
+  setIsLoading(true);
+  setProgressText("Submitting request...");
+  setProgress({ completed: 0, total: 1 }); // temp placeholder
+  setSelectionPlaced(false);
+  setSelectMode(false);
+  setCenterCartographic(null);
+  if (viewer) viewer.entities.removeAll();
 
-      const lat = CesiumMath.toDegrees(centerCartographic.latitude);
-      const lon = CesiumMath.toDegrees(centerCartographic.longitude);
-      const sessionId = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
-      const region = {
-        latitude: lat,
-        longitude: lon,
-        radius_km: radiusKm,
-        session_id: sessionId
-      };
+  const lat = CesiumMath.toDegrees(centerCartographic.latitude);
+  const lon = CesiumMath.toDegrees(centerCartographic.longitude);
+  const sessionId = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
+  const region = {
+    latitude: lat,
+    longitude: lon,
+    radius_km: radiusKm,
+    session_id: sessionId,
+  };
 
+  try {
+    // ⏳ Step 1: Trigger prediction request first
+    await handleRegionConfirm(region);
 
-      const pollProgress = async () => {
-        try {
-          const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
-          const data = await res.json();
-          setProgress(data);
-          setProgressText(data.step || "Processing...");
-          if (data.completed < data.total) {
-            setTimeout(pollProgress, 1000);
-          }
-        } catch (err) {
-          console.error("Polling error:", err);
-        }
-      };
-
+    // ✅ Step 2: Start polling *only after* request finishes
+    const pollProgress = async () => {
       try {
-        pollProgress();
-        await handleRegionConfirm(region); // triggers the backend work
+        const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
+        const data = await res.json();
+        setProgress(data);
+        setProgressText(data.stage || "Processing...");
+        if (data.completed < data.total) {
+          setTimeout(pollProgress, 1000);
+        }
       } catch (err) {
-        console.error("❌ Prediction error:", err);
-      } finally {
-        setIsLoading(false);
-        setProgress(null);
-        setProgressText("Done.");
+        console.error("Polling error:", err);
       }
-    }}
+    };
+    pollProgress();
+  } catch (err) {
+    console.error("❌ Prediction error:", err);
+  } finally {
+    setIsLoading(false);
+  }
+}}
+
 
 
 
