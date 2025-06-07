@@ -14,9 +14,6 @@ from datetime import datetime
 import uuid
 import shutil
 import rasterio
-from fastapi.responses import JSONResponse
-
-progress = {}
 
 # === FastAPI Setup ===
 app = FastAPI()
@@ -36,7 +33,6 @@ class RegionRequest(BaseModel):
     latitude: float
     longitude: float
     radius_km: float
-    session_id: str
 
 # === Root Endpoint ===
 @app.get("/")
@@ -54,30 +50,12 @@ def predict_region(req: RegionRequest):
     lon_max = max(-180, min(180, req.longitude + buffered_delta))
 
 
-    session_id = req.session_id
+    session_id = str(uuid.uuid4())
     tile_folder = os.path.join("temp_tiles", "tiles", session_id)
     os.makedirs(tile_folder, exist_ok=True)
-    progress[session_id] = {
-        "stage": "tiling",
-        "completed": 0,
-        "total": 0
-    }
 
     try:
-        def update_tiling_progress(completed, total):
-            progress[session_id]["completed"] = completed
-            progress[session_id]["total"] = total
-
-        tile_data = generate_tiles(
-            lat_min, lon_min, lat_max, lon_max,
-            tile_folder,
-            progress_callback=update_tiling_progress
-        )
-
-        progress[session_id]["stage"] = "prediction"
-        progress[session_id]["total"] = len(tile_data)
-        progress[session_id]["completed"] = 0
-
+        tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max, tile_folder)
 
 
 
@@ -107,19 +85,11 @@ def predict_region(req: RegionRequest):
                 "id": tile_id,
                 "tile_width_deg": tile_deg_width
             })
-            progress[session_id]["completed"] += 1
-
 
         except Exception as e:
             print(f"❌ Error processing tile {tile['path']}: {e}")
-    progress[session_id]["stage"] = "done"
-    return {"tiles": results}
 
-@app.get("/progress/{session_id}")
-def get_progress(session_id: str):
-    if session_id not in progress:
-        return JSONResponse(content={"error": "Session not found"}, status_code=404)
-    return progress[session_id]
+    return {"tiles": results}
 
 # === Background Cleanup Thread ===
 FOLDER = "temp_tiles"

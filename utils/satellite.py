@@ -94,7 +94,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
         raise RuntimeError(f"Unexpected content type: {content_type}")
 
 # === Step 2: Tile TIF into 256x256 PNGs ===
-def tile_tif(input_tif_path, tile_size=256, output_dir=None, progress_callback=None):
+def tile_tif(input_tif_path, tile_size=256, output_dir=None):
     tile_id = 0
     tile_data = []
 
@@ -102,9 +102,6 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, progress_callback=N
         width, height = src.width, src.height
         transform = src.transform
         print(f"🧩 Image size: {width} x {height}")
-
-        total_tiles = ((height - tile_size) // tile_size + 1) * ((width - tile_size) // tile_size + 1)
-        tile_count = 0
 
         for y in range(0, height, tile_size):
             for x in range(0, width, tile_size):
@@ -118,42 +115,39 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, progress_callback=N
                         band = tile_rgb[:, :, b]
                         min_val = np.percentile(band, 1)
                         max_val = np.percentile(band, 99)
-                        max_val = min(max_val, 4000)  # Cap for Sentinel
+                        max_val = min(max_val, 4000)  # Cap max value at 4000 for Sentinel
                         if max_val > min_val:
                             tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val) * 255
                         else:
                             tile_rgb[:, :, b] = 0
 
                     tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
+
                     tile_path = os.path.join(output_dir, f"tile_{tile_id:04d}.png")
+
                     Image.fromarray(tile_rgb).save(tile_path)
 
+                    # Calculate lat/lon of tile center
                     row_center = y + tile_size // 2
                     col_center = x + tile_size // 2
                     lon, lat = rasterio.transform.xy(transform, row_center, col_center)
-
+                    
                     tile_data.append({
                         "path": tile_path,
                         "lat": lat,
                         "lon": lon
                     })
-
                     tile_id += 1
-                    tile_count += 1
-                    if progress_callback:
-                        progress_callback(tile_count, total_tiles)  # ✅ update count
 
     print(f"✅ Tiling complete. {tile_id} tiles saved.")
     return tile_data
 
-
 # === Step 3: Unified Function ===
-def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir, progress_callback=None):
+def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
     shutil.rmtree(output_dir, ignore_errors=True)
     os.makedirs(output_dir, exist_ok=True)
-
+    
     tif_path = os.path.join(output_dir, 'exported_naip.tif')
     download_tif(lat_min, lon_min, lat_max, lon_max, tif_path)
-
-    return tile_tif(tif_path, tile_size=256, output_dir=output_dir, progress_callback=progress_callback)
-
+    
+    return tile_tif(tif_path, tile_size=256, output_dir=output_dir)

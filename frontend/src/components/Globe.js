@@ -31,10 +31,18 @@ export default function Globe() {
     const [selectionPlaced, setSelectionPlaced] = useState(false);
 const [heatmapTiles, setHeatmapTiles] = useState([]);
 const [isLoading, setIsLoading] = useState(false);
-const [progress, setProgress] = useState(null);
-const [progressText, setProgressText] = useState("Initializing...");
 
-const handleRegionConfirm = async (region) => {
+const handleRegionConfirm = async () => {
+  if (!centerCartographic) return;
+
+  const lat = CesiumMath.toDegrees(centerCartographic.latitude);
+  const lon = CesiumMath.toDegrees(centerCartographic.longitude);
+
+  const region = {
+    latitude: lat,
+    longitude: lon,
+    radius_km: radiusKm,
+  };
 
   console.log("Sending to backend:", region);
 
@@ -389,54 +397,22 @@ useEffect(() => {
       />
     </div>
     <button
-onClick={async () => {
-  setIsLoading(true);
-  setProgressText("Submitting request...");
-  setProgress({ completed: 0, total: 1 }); // temp placeholder
-  setSelectionPlaced(false);
-  setSelectMode(false);
-  setCenterCartographic(null);
-  if (viewer) viewer.entities.removeAll();
-
-  const lat = CesiumMath.toDegrees(centerCartographic.latitude);
-  const lon = CesiumMath.toDegrees(centerCartographic.longitude);
-  const sessionId = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
-  const region = {
-    latitude: lat,
-    longitude: lon,
-    radius_km: radiusKm,
-    session_id: sessionId,
-  };
-
-  try {
-    setProgressText("Tiling imagery...");
+    onClick={async () => {
+    setIsLoading(true); // 👈 Show loading message
+    setSelectionPlaced(false);
+    setSelectMode(false);
+    setCenterCartographic(null); // 👈 Clear selection
     
-    await handleRegionConfirm(region); // 👈 FIRST wait for backend to finish setup
+    if (viewer) viewer.entities.removeAll(); // 👈 Remove circle/label/box
 
-    const pollProgress = async () => {
-      try {
-        const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
-        const data = await res.json();
-        setProgress(data);
-        setProgressText(data.stage || "Processing...");
-        if (data.completed < data.total) {
-          setTimeout(pollProgress, 1000);
-        }
-      } catch (err) {
-        console.error("Polling error:", err);
-      }
-    };
-
-    pollProgress(); // 👈 THEN begin polling
-  } catch (err) {
-    console.error("❌ Prediction error:", err);
-  } finally {
-    setIsLoading(false);
-  }
-}}
-
-
-
+    try {
+        await handleRegionConfirm();
+    } catch (err) {
+        console.error("❌ Prediction error:", err);
+    } finally {
+        setIsLoading(false); // 👈 Hide loading message
+    }
+    }}
 
 
       style={{
@@ -504,49 +480,6 @@ onClick={async () => {
     <span>1</span>
   </div>
 </div>
-{progress && (
-  <div
-    style={{
-      position: "absolute",
-      top: 60,
-      left: "50%",
-      transform: "translateX(-50%)",
-      width: "300px",
-      backgroundColor: "#222",
-      border: "1px solid #0ff",
-      borderRadius: "8px",
-      padding: "10px",
-      zIndex: 999,
-      fontFamily: "monospace",
-      color: "#0ff",
-      textAlign: "center",
-    }}
-  >
-    <div>{progressText}</div>
-    <div
-      style={{
-        width: "100%",
-        backgroundColor: "#333",
-        height: "10px",
-        borderRadius: "4px",
-        marginTop: "6px",
-      }}
-    >
-      <div
-        style={{
-          width: `${(progress.completed / progress.total) * 100}%`,
-          height: "100%",
-          backgroundColor: "#0ff",
-          transition: "width 0.4s ease",
-          borderRadius: "4px",
-        }}
-      />
-    </div>
-    <div style={{ marginTop: "4px", fontSize: "12px" }}>
-      {progress.completed}/{progress.total} steps
-    </div>
-  </div>
-)}
 
       <div ref={viewerRef} style={{ height: "100%", width: "100%" }} />
     </div>
