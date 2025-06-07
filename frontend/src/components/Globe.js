@@ -31,38 +31,48 @@ export default function Globe() {
     const [selectionPlaced, setSelectionPlaced] = useState(false);
 const [heatmapTiles, setHeatmapTiles] = useState([]);
 const [isLoading, setIsLoading] = useState(false);
-const [progressText, setProgressText] = useState("Initializing...");
-const [progressValue, setProgressValue] = useState({ completed: 0, total: 1 });
 
-const handleRegionConfirm = async (lat, lon, radiusKm, sessionId) => {
-  try {
-    const pollProgress = async () => {
-    try {
-      const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
-      const data = await res.json();
+const handleRegionConfirm = async () => {
+  if (!centerCartographic) return;
 
-      setProgressText(data.stage || "Processing...");
-      setProgressValue({ completed: data.completed, total: data.total });
+  const lat = CesiumMath.toDegrees(centerCartographic.latitude);
+  const lon = CesiumMath.toDegrees(centerCartographic.longitude);
 
-      if (data.tiles) {
-        setHeatmapTiles(data.tiles);
-      }
-
-      if (data.stage !== "done") {
-        setTimeout(pollProgress, 1000);
-      }
-    } catch (err) {
-      console.error("❌ Polling error:", err);
-    }
+  const region = {
+    latitude: lat,
+    longitude: lon,
+    radius_km: radiusKm,
   };
 
+  console.log("Sending to backend:", region);
 
-    pollProgress(); // ⏳ Start polling right after predict POST
+  try {
+    const response = await fetch("https://terrabite.onrender.com/predict", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(region),
+    });
+
+    if (!response.ok) throw new Error("Failed to fetch prediction");
+
+    const text = await response.text();
+
+    if (!response.ok) {
+    console.error("❌ Backend error:", text);
+    throw new Error("Failed to fetch prediction");
+    }
+
+    const data = JSON.parse(text);
+    setHeatmapTiles(data.tiles);
+
+    console.log("✅ Prediction Result:", data);
+    // You can optionally handle or visualize `data.tiles` here
   } catch (err) {
     console.error("❌ Prediction request failed:", err);
   }
 };
-
 
   useEffect(() => {
     if (!viewerRef.current) return;
@@ -387,35 +397,22 @@ useEffect(() => {
       />
     </div>
     <button
-onClick={async () => {
-  setIsLoading(true);
-  setSelectionPlaced(false);
-  setSelectMode(false);
-  const lat = CesiumMath.toDegrees(centerCartographic.latitude);
-  const lon = CesiumMath.toDegrees(centerCartographic.longitude);
-  if (viewer) viewer.entities.removeAll();
+    onClick={async () => {
+    setIsLoading(true); // 👈 Show loading message
+    setSelectionPlaced(false);
+    setSelectMode(false);
+    setCenterCartographic(null); // 👈 Clear selection
+    
+    if (viewer) viewer.entities.removeAll(); // 👈 Remove circle/label/box
 
-  try {
-    const response = await fetch("https://terrabite.onrender.com/predict", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        latitude: lat,
-        longitude: lon,
-        radius_km: radiusKm,
-      }),
-    });
-
-    const data = await response.json();
-    const sessionId = data.session_id;
-    await handleRegionConfirm(lat, lon, radiusKm, sessionId);
-  } catch (err) {
-    console.error("❌ Failed to start prediction:", err);
-  } finally {
-    setIsLoading(false);
-  }
-}}
-
+    try {
+        await handleRegionConfirm();
+    } catch (err) {
+        console.error("❌ Prediction error:", err);
+    } finally {
+        setIsLoading(false); // 👈 Hide loading message
+    }
+    }}
 
 
       style={{
@@ -483,49 +480,6 @@ onClick={async () => {
     <span>1</span>
   </div>
 </div>
-{isLoading && (
-  <div
-    style={{
-      position: "absolute",
-      top: 60,
-      left: "50%",
-      transform: "translateX(-50%)",
-      width: "300px",
-      backgroundColor: "#222",
-      border: "1px solid #0ff",
-      borderRadius: "8px",
-      padding: "10px",
-      zIndex: 999,
-      fontFamily: "monospace",
-      color: "#0ff",
-      textAlign: "center",
-    }}
-  >
-    <div>{progressText}</div>
-    <div
-      style={{
-        width: "100%",
-        backgroundColor: "#333",
-        height: "10px",
-        borderRadius: "4px",
-        marginTop: "6px",
-      }}
-    >
-      <div
-        style={{
-          width: `${(progressValue.completed / progressValue.total) * 100}%`,
-          height: "100%",
-          backgroundColor: "#0ff",
-          transition: "width 0.4s ease",
-          borderRadius: "4px",
-        }}
-      />
-    </div>
-    <div style={{ marginTop: "4px", fontSize: "12px" }}>
-      {progressValue.completed}/{progressValue.total} steps
-    </div>
-  </div>
-)}
 
       <div ref={viewerRef} style={{ height: "100%", width: "100%" }} />
     </div>
