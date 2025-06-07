@@ -408,30 +408,32 @@ useEffect(() => {
     session_id: sessionId,
   };
 
-  try {
-    // ⏳ Step 1: Trigger prediction request first
-    await handleRegionConfirm(region);
-
-    // ✅ Step 2: Start polling *only after* request finishes
-    const pollProgress = async () => {
-      try {
-        const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
-        const data = await res.json();
-        setProgress(data);
-        setProgressText(data.stage || "Processing...");
-        if (data.completed < data.total) {
-          setTimeout(pollProgress, 1000);
-        }
-      } catch (err) {
-        console.error("Polling error:", err);
+try {
+  setProgress({ completed: 0, total: 0 }); // 👈 reset with 0s
+  setProgressText("Tiling imagery...");
+  
+  const pollProgress = async () => {
+    try {
+      const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
+      const data = await res.json();
+      setProgress(data);
+      setProgressText(data.stage || "Processing...");
+      if (data.completed < data.total) {
+        setTimeout(pollProgress, 1000);
       }
-    };
-    pollProgress();
-  } catch (err) {
-    console.error("❌ Prediction error:", err);
-  } finally {
-    setIsLoading(false);
-  }
+    } catch (err) {
+      console.error("Polling error:", err);
+    }
+  };
+
+  pollProgress(); // 🟢 Start polling right away
+  await handleRegionConfirm(region); // 🕒 Backend begins tiling & predicting
+} catch (err) {
+  console.error("❌ Prediction error:", err);
+} finally {
+  setIsLoading(false);
+}
+
 }}
 
 
