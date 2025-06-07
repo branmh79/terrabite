@@ -34,18 +34,8 @@ const [isLoading, setIsLoading] = useState(false);
 const [progress, setProgress] = useState(null);
 const [progressText, setProgressText] = useState("Initializing...");
 
-const handleRegionConfirm = async () => {
+const handleRegionConfirm = async (region) => {
   if (!centerCartographic) return;
-
-  const lat = CesiumMath.toDegrees(centerCartographic.latitude);
-  const lon = CesiumMath.toDegrees(centerCartographic.longitude);
-
-  const region = {
-    latitude: lat,
-    longitude: lon,
-    radius_km: radiusKm,
-    session_id: sessionId,
-  };
 
   console.log("Sending to backend:", region);
 
@@ -411,13 +401,14 @@ useEffect(() => {
 
       const lat = CesiumMath.toDegrees(centerCartographic.latitude);
       const lon = CesiumMath.toDegrees(centerCartographic.longitude);
+      const sessionId = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
       const region = {
         latitude: lat,
         longitude: lon,
         radius_km: radiusKm,
+        session_id: sessionId
       };
 
-      const sessionId = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
 
       const pollProgress = async () => {
         try {
@@ -435,7 +426,7 @@ useEffect(() => {
 
       try {
         pollProgress();
-        await handleRegionConfirm(); // triggers the backend work
+        await handleRegionConfirm(region); // triggers the backend work
       } catch (err) {
         console.error("❌ Prediction error:", err);
       } finally {
