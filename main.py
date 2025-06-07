@@ -67,7 +67,7 @@ def predict_region(req: RegionRequest):
         tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max, tile_folder)
         progress[session_id]["stage"] = "prediction"
         progress[session_id]["total"] = len(tile_data)
-
+        progress[session_id]["completed"] = 0
 
 
 
