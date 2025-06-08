@@ -522,7 +522,7 @@ useEffect(() => {
     <div>{progressText}</div>
     <div
       style={{
-        width: 200,
+        width: "100%",
         height: 10,
         backgroundColor: "#333",
         borderRadius: 4,
