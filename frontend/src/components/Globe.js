@@ -74,7 +74,13 @@ const handleRegionConfirm = async () => {
         if (prog.completed < prog.total) {
           setTimeout(pollProgress, 1000);
         } else {
-          setHeatmapTiles(data.tiles); // 👈 Show tiles after done
+          try {
+            const tilesRes = await fetch(`https://terrabite.onrender.com/results/${sessionId}`);
+            const tilesJson = await tilesRes.json();
+            setHeatmapTiles(tilesJson.tiles);
+          } catch (err) {
+            console.error("❌ Failed to fetch tiles:", err);
+          }
         }
       } catch (err) {
         console.error("Progress polling error:", err);
@@ -117,7 +123,7 @@ const handleRegionConfirm = async () => {
   }, []);
 
 useEffect(() => {
-    if (!viewer || !viewer.scene || !viewer.scene.canvas || heatmapTiles.length === 0) return;
+    if (!viewer || !viewer.scene || !viewer.scene.canvas || !Array.isArray(heatmapTiles)) return;
 
 
   // Optional: Clear previous heatmap tiles

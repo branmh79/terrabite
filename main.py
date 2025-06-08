@@ -16,6 +16,7 @@ import shutil
 import rasterio
 from fastapi import BackgroundTasks
 from fastapi.responses import JSONResponse
+import json
 
 progress = {}
 
@@ -100,9 +101,23 @@ def run_predictions(tile_data, session_id):
     
     progress[session_id]["stage"] = "done"
 
+    # ✅ STEP 1: Save results to disk for frontend to load later
+    import json
+    with open(f"temp_tiles/results_{session_id}.json", "w") as f:
+        json.dump(results, f)
+
+
 @app.get("/progress/{session_id}")
 def get_progress(session_id: str):
     return progress.get(session_id, {"completed": 0, "total": 0, "stage": "initializing"})
+
+@app.get("/results/{session_id}")
+def get_results(session_id: str):
+    path = f"temp_tiles/results_{session_id}.json"
+    if not os.path.exists(path):
+        return {"tiles": []}
+    with open(path, "r") as f:
+        return {"tiles": json.load(f)}
 
 # === Background Cleanup Thread ===
 FOLDER = "temp_tiles"
