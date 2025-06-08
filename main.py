@@ -45,26 +45,35 @@ def read_root():
 
 # === Prediction Endpoint ===
 @app.post("/predict")
-def predict_region(req: RegionRequest):
-    # [same lat/lon calculation logic...]
+def predict_region(req: RegionRequest, background_tasks: BackgroundTasks):
     session_id = str(uuid.uuid4())
     tile_folder = os.path.join("temp_tiles", "tiles", session_id)
     os.makedirs(tile_folder, exist_ok=True)
 
     try:
-        radius_deg = req.radius_km * 0.0088  # approximate conversion: 1 km ≈ 0.0088°
+        radius_deg = req.radius_km * 0.0088
         lat_min = req.latitude - radius_deg
         lat_max = req.latitude + radius_deg
         lon_min = req.longitude - radius_deg
         lon_max = req.longitude + radius_deg
         tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max, tile_folder)
-        print(f"[{session_id}] Processed {idx+1}/{len(tile_data)} tiles")
     except Exception as e:
         print(f"❌ Failed to generate tiles: {e}")
-        return {"tiles": []}
+        return {"tiles": [], "session_id": session_id}
 
-    progress[session_id] = {"completed": 0, "total": len(tile_data), "stage": "prediction"}
+    progress[session_id] = {
+        "completed": 0,
+        "total": len(tile_data),
+        "stage": "prediction"
+    }
 
+    # 🔁 Run prediction in background
+    background_tasks.add_task(run_predictions, tile_data, session_id)
+
+    return {"session_id": session_id}
+
+
+def run_predictions(tile_data, session_id):
     results = []
     for idx, tile in enumerate(tile_data):
         try:
@@ -85,14 +94,11 @@ def predict_region(req: RegionRequest):
                 "tile_width_deg": tile_deg_width
             })
 
-            # ✅ Update progress
             progress[session_id]["completed"] += 1
-
         except Exception as e:
             print(f"❌ Error processing tile {tile['path']}: {e}")
-
-    return {"tiles": results, "session_id": session_id}
-
+    
+    progress[session_id]["stage"] = "done"
 
 @app.get("/progress/{session_id}")
 def get_progress(session_id: str):
