@@ -69,7 +69,8 @@ const handleRegionConfirm = async () => {
         const prog = await res.json();
 
         setProgress(prog);
-        setProgressText(`${prog.stage} ${prog.completed}/${prog.total} steps`);
+        setProgressText(`Analyzing satellite tiles: ${prog.completed} of ${prog.total} complete`);
+
 
         if (prog.completed < prog.total) {
           setTimeout(pollProgress, 1000);
@@ -468,7 +469,7 @@ useEffect(() => {
       zIndex: 999,
     }}
   >
-    Calculating food desert levels...
+      Preparing satellite imagery and fetching region data...
   </div>
 )}
 
