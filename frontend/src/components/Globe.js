@@ -31,6 +31,9 @@ export default function Globe() {
     const [selectionPlaced, setSelectionPlaced] = useState(false);
 const [heatmapTiles, setHeatmapTiles] = useState([]);
 const [isLoading, setIsLoading] = useState(false);
+const [progress, setProgress] = useState({ completed: 0, total: 1 });
+const [progressText, setProgressText] = useState("Initializing...");
+
 
 const handleRegionConfirm = async () => {
   if (!centerCartographic) return;
@@ -47,32 +50,44 @@ const handleRegionConfirm = async () => {
   console.log("Sending to backend:", region);
 
   try {
-    const response = await fetch("https://terrabite.onrender.com/predict", {
+    // Send prediction request
+    const res = await fetch("https://terrabite.onrender.com/predict", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(region),
     });
 
-    if (!response.ok) throw new Error("Failed to fetch prediction");
+    const data = await res.json();
+    const sessionId = data.session_id;
+    setProgress({ completed: 0, total: 1 });
+    setProgressText("Initializing...");
 
-    const text = await response.text();
+    // Start polling
+    const pollProgress = async () => {
+      try {
+        const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
+        const prog = await res.json();
 
-    if (!response.ok) {
-    console.error("❌ Backend error:", text);
-    throw new Error("Failed to fetch prediction");
-    }
+        setProgress(prog);
+        setProgressText(`${prog.stage} ${prog.completed}/${prog.total} steps`);
 
-    const data = JSON.parse(text);
-    setHeatmapTiles(data.tiles);
+        if (prog.completed < prog.total) {
+          setTimeout(pollProgress, 1000);
+        } else {
+          setHeatmapTiles(data.tiles); // 👈 Show tiles after done
+        }
+      } catch (err) {
+        console.error("Progress polling error:", err);
+      }
+    };
 
-    console.log("✅ Prediction Result:", data);
-    // You can optionally handle or visualize `data.tiles` here
+    pollProgress();
+
   } catch (err) {
-    console.error("❌ Prediction request failed:", err);
+    console.error("❌ Prediction error:", err);
   }
 };
+
 
   useEffect(() => {
     if (!viewerRef.current) return;
@@ -480,6 +495,45 @@ useEffect(() => {
     <span>1</span>
   </div>
 </div>
+{progress && progress.total > 1 && progress.completed < progress.total && (
+  <div
+    style={{
+      position: "absolute",
+      top: 20,
+      left: "50%",
+      transform: "translateX(-50%)",
+      backgroundColor: "#111",
+      color: "#0ff",
+      padding: "10px 20px",
+      borderRadius: "8px",
+      fontFamily: "monospace",
+      fontSize: "13px",
+      zIndex: 999,
+      textAlign: "center",
+    }}
+  >
+    <div>{progressText}</div>
+    <div
+      style={{
+        width: 200,
+        height: 10,
+        backgroundColor: "#333",
+        borderRadius: 4,
+        marginTop: 6,
+      }}
+    >
+      <div
+        style={{
+          width: `${(progress.completed / progress.total) * 100}%`,
+          height: "100%",
+          backgroundColor: "#0ff",
+          borderRadius: 4,
+          transition: "width 0.3s ease",
+        }}
+      />
+    </div>
+  </div>
+)}
 
       <div ref={viewerRef} style={{ height: "100%", width: "100%" }} />
     </div>
