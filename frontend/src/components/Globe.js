@@ -33,6 +33,15 @@ const [heatmapTiles, setHeatmapTiles] = useState([]);
 const [isLoading, setIsLoading] = useState(false);
 const [progress, setProgress] = useState({ completed: 0, total: 1 });
 const [progressText, setProgressText] = useState("Initializing...");
+const [showWelcome, setShowWelcome] = useState(false);
+
+useEffect(() => {
+  const visited = localStorage.getItem("visited");
+  if (!visited) {
+    setShowWelcome(true);
+    localStorage.setItem("visited", "true");
+  }
+}, []);
 
 
 const handleRegionConfirm = async () => {
@@ -333,7 +342,78 @@ useEffect(() => {
 
   return (
     <div style={{ position: "relative", height: "100vh", width: "100%" }}>
-      
+{showWelcome && (
+  <>
+    {/* Dimmed overlay */}
+    <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100vw",
+      height: "100vh",
+      backgroundColor: "rgba(0, 0, 0, 0.7)",
+      zIndex: 9998
+    }} />
+
+    {/* Welcome modal */}
+    <div style={{
+      position: "absolute",
+      top: "8%",
+      left: "50%",
+      transform: "translateX(-50%)",
+      backgroundColor: "#111",
+      color: "#0ff",
+      padding: "24px",
+      borderRadius: "12px",
+      zIndex: 9999,
+      width: "440px",
+      fontFamily: "monospace",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.5)"
+    }}>
+      <h3 style={{ marginTop: 0 }}>👋 Welcome to TerraBite</h3>
+      <p style={{ marginBottom: "8px" }}>
+        The U.S. Census defines a <strong>food desert</strong> as an area that:
+      </p>
+      <ul style={{ paddingLeft: "20px", marginBottom: "12px" }}>
+        <li>Has a poverty rate ≥ 20%</li>
+        <li>AND is ≥ 1 mile from a supermarket (urban) or ≥ 10 miles (rural)</li>
+      </ul>
+      <p style={{ marginBottom: "12px" }}>
+        This tool uses satellite imagery and AI to detect visual patterns linked to these conditions.
+      </p>
+      <p style={{ marginBottom: "12px" }}>
+        ➤ Use the 📍 pin tool to select a region.<br />
+        ➤ Adjust the side length and click <strong>Confirm</strong>.<br />
+        ➤ View colored tiles ranked by their food desert likelihood.
+      </p>
+      <p style={{ marginBottom: "18px" }}>
+        <strong>Tile Score Legend:</strong><br />
+        <span style={{ color: "#ff5555" }}>0.0</span> = unlikely to be a food desert<br />
+        <span style={{ color: "#00ffff" }}>1.0</span> = highly likely
+      </p>
+
+      {/* Centered button */}
+      <div style={{ textAlign: "center" }}>
+        <button
+          onClick={() => setShowWelcome(false)}
+          style={{
+            backgroundColor: "#0ff",
+            color: "#000",
+            border: "none",
+            padding: "8px 18px",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "bold"
+          }}
+        >
+          Let’s go!
+        </button>
+      </div>
+    </div>
+  </>
+)}
+
+
       {/* Selection Tool Icon with Tooltip */}
 <div style={{ position: "absolute", top: 45, right: 7.5, zIndex: 10 }}>
   <div
