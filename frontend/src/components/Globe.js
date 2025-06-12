@@ -416,6 +416,7 @@ useEffect(() => {
 
 
 
+
       {/* Selection Tool Icon with Tooltip */}
 <div style={{ position: "absolute", top: 45, right: 7.5, zIndex: 10 }}>
   <div
