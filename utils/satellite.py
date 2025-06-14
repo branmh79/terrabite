@@ -9,6 +9,7 @@ import zipfile
 import shutil
 from shapely.geometry import Point, shape
 import geopandas as gpd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # === Authenticate with Service Account ===
 SERVICE_ACCOUNT = 'terrabite-earthengine@food-desert-app.iam.gserviceaccount.com'
@@ -143,36 +144,56 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None):
     return tile_data
 
 # === Step 3: Unified Function ===
+
 def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2):
-    lat_steps = np.linspace(lat_min, lat_max, grid_size + 1)
-    lon_steps = np.linspace(lon_min, lon_max, grid_size + 1)
+    # Generate clean, gap-free grid using exact border alignment
+    lat_edges = np.linspace(lat_min, lat_max, grid_size + 1)
+    lon_edges = np.linspace(lon_min, lon_max, grid_size + 1)
 
     subregions = []
     for i in range(grid_size):
         for j in range(grid_size):
-            sub_lat_min = lat_steps[i]
-            sub_lat_max = lat_steps[i + 1]
-            sub_lon_min = lon_steps[j]
-            sub_lon_max = lon_steps[j + 1]
-            subregions.append((sub_lat_min, sub_lon_min, sub_lat_max, sub_lon_max))
+            sub_lat_min = float(lat_edges[i])
+            sub_lat_max = float(lat_edges[i + 1])
+            sub_lon_min = float(lon_edges[j])
+            sub_lon_max = float(lon_edges[j + 1])
+            subregions.append((
+                round(sub_lat_min, 6),
+                round(sub_lon_min, 6),
+                round(sub_lat_max, 6),
+                round(sub_lon_max, 6)
+            ))
     return subregions
+
+def process_subregion(idx, bounds, output_dir):
+    s_lat_min, s_lon_min, s_lat_max, s_lon_max = bounds
+    tif_path = os.path.join(output_dir, f'subregion_{idx}.tif')
+
+    try:
+        print(f"📦 Starting subregion {idx + 1} download...")
+        download_tif(s_lat_min, s_lon_min, s_lat_max, s_lon_max, tif_path)
+        tile_data = tile_tif(tif_path, tile_size=256, output_dir=output_dir)
+        return tile_data
+    except Exception as e:
+        print(f"❌ Subregion {idx + 1} failed: {e}")
+        return []
 
 def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
     shutil.rmtree(output_dir, ignore_errors=True)
     os.makedirs(output_dir, exist_ok=True)
 
+    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2)
     all_tile_data = []
-    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2)  # 2x2 = 4 parts
 
-    for idx, (s_lat_min, s_lon_min, s_lat_max, s_lon_max) in enumerate(subregions):
-        tif_path = os.path.join(output_dir, f'subregion_{idx}.tif')
-        try:
-            print(f"📦 Processing subregion {idx + 1}/{len(subregions)}...")
-            download_tif(s_lat_min, s_lon_min, s_lat_max, s_lon_max, tif_path)
-            tile_data = tile_tif(tif_path, tile_size=256, output_dir=output_dir)
-            all_tile_data.extend(tile_data)
-        except Exception as e:
-            print(f"❌ Skipped subregion {idx + 1} due to error: {e}")
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [
+            executor.submit(process_subregion, idx, bounds, output_dir)
+            for idx, bounds in enumerate(subregions)
+        ]
 
-    print(f"✅ Finished generating tiles. Total: {len(all_tile_data)}")
+        for future in as_completed(futures):
+            all_tile_data.extend(future.result())
+
+    print(f"✅ Parallel tiling complete. Total tiles: {len(all_tile_data)}")
     return all_tile_data
+
