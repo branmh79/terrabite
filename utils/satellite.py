@@ -186,7 +186,7 @@ def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
     shutil.rmtree(output_dir, ignore_errors=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=3)
+    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2)
     all_tile_data = []
 
     with ThreadPoolExecutor(max_workers=4) as executor:
