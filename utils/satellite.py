@@ -104,8 +104,8 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
         print(f"🧩 Image size: {width} x {height}")
 
         # Grid of evenly spaced center points
-        margin_x = int(width * 0.04)   # 4% margin left/right
-        margin_y = int(height * 0.04)  # 4% margin top/bottom
+        margin_x = int(width * 0.01)   # 4% margin left/right
+        margin_y = int(height * 0.01)  # 4% margin top/bottom
 
         grid_x = np.linspace(margin_x + tile_size // 2, width - margin_x - tile_size // 2, 5, dtype=int)
         grid_y = np.linspace(margin_y + tile_size // 2, height - margin_y - tile_size // 2, 5, dtype=int)
