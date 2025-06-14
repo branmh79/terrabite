@@ -51,7 +51,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .mosaic() \
             .select(['R', 'G', 'B']) \
             .clip(region)
-        scale = 4
+        scale = 3
     else:
         print("🌍 Using Sentinel-2 SR Harmonized imagery")
         image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED") \
@@ -62,7 +62,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
-        scale = 4
+        scale = 3
         
     download_url = image.getDownloadURL({
         'region': region,
@@ -95,7 +95,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
         raise RuntimeError(f"Unexpected content type: {content_type}")
 
 # === Step 2: Tile TIF into 256x256 PNGs ===
-def tile_tif(input_tif_path, tile_size=256, output_dir=None):
+def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
     tile_id = 0
     tile_data = []
 
@@ -115,16 +115,18 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None):
                     for b in range(tile_rgb.shape[2]):
                         band = tile_rgb[:, :, b]
                         min_val = np.percentile(band, 1)
-                        max_val = np.percentile(band, 99)
-                        max_val = min(max_val, 4000)  # Cap max value at 4000 for Sentinel
+                        max_val = np.percentile(band, 98)  # Slightly more aggressive
+                        max_val = min(max_val, 3500)       # Lower cap for cleaner Sentinel color
                         if max_val > min_val:
-                            tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val) * 255
+                            tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val + 1e-6) * 255
                         else:
                             tile_rgb[:, :, b] = 0
 
+
                     tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
 
-                    tile_path = os.path.join(output_dir, f"tile_{tile_id:04d}.png")
+                    tile_path = os.path.join(output_dir, f"{prefix}_{tile_id:04d}.png")
+
 
                     Image.fromarray(tile_rgb).save(tile_path)
 
@@ -158,11 +160,12 @@ def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2):
             sub_lon_min = float(lon_edges[j])
             sub_lon_max = float(lon_edges[j + 1])
             subregions.append((
-                round(sub_lat_min, 6),
-                round(sub_lon_min, 6),
-                round(sub_lat_max, 6),
-                round(sub_lon_max, 6)
+                sub_lat_min,
+                sub_lon_min,
+                sub_lat_max,
+                sub_lon_max
             ))
+
     return subregions
 
 def process_subregion(idx, bounds, output_dir):
@@ -172,7 +175,8 @@ def process_subregion(idx, bounds, output_dir):
     try:
         print(f"📦 Starting subregion {idx + 1} download...")
         download_tif(s_lat_min, s_lon_min, s_lat_max, s_lon_max, tif_path)
-        tile_data = tile_tif(tif_path, tile_size=256, output_dir=output_dir)
+        tile_data = tile_tif(tif_path, tile_size=256, output_dir=output_dir, prefix=f"tile_s{idx}")
+
         return tile_data
     except Exception as e:
         print(f"❌ Subregion {idx + 1} failed: {e}")
@@ -182,7 +186,7 @@ def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
     shutil.rmtree(output_dir, ignore_errors=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2)
+    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=3)
     all_tile_data = []
 
     with ThreadPoolExecutor(max_workers=4) as executor:
