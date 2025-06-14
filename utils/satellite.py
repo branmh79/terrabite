@@ -150,26 +150,32 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
 
 # === Step 3: Unified Function ===
 
-def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2):
-    # Generate clean, gap-free grid using exact border alignment
+def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0.96):
     lat_edges = np.linspace(lat_min, lat_max, grid_size + 1)
     lon_edges = np.linspace(lon_min, lon_max, grid_size + 1)
 
     subregions = []
     for i in range(grid_size):
         for j in range(grid_size):
-            sub_lat_min = float(lat_edges[i])
-            sub_lat_max = float(lat_edges[i + 1])
-            sub_lon_min = float(lon_edges[j])
-            sub_lon_max = float(lon_edges[j + 1])
-            subregions.append((
-                sub_lat_min,
-                sub_lon_min,
-                sub_lat_max,
-                sub_lon_max
-            ))
+            lat0 = lat_edges[i]
+            lat1 = lat_edges[i + 1]
+            lon0 = lon_edges[j]
+            lon1 = lon_edges[j + 1]
 
+            # shrink each subregion inward by a % margin
+            lat_center = (lat0 + lat1) / 2
+            lon_center = (lon0 + lon1) / 2
+            lat_half = (lat1 - lat0) / 2 * shrink_ratio
+            lon_half = (lon1 - lon0) / 2 * shrink_ratio
+
+            sub_lat_min = lat_center - lat_half
+            sub_lat_max = lat_center + lat_half
+            sub_lon_min = lon_center - lon_half
+            sub_lon_max = lon_center + lon_half
+
+            subregions.append((sub_lat_min, sub_lon_min, sub_lat_max, sub_lon_max))
     return subregions
+
 
 def process_subregion(idx, bounds, output_dir):
     s_lat_min, s_lon_min, s_lat_max, s_lon_max = bounds
