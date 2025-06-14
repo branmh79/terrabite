@@ -51,7 +51,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .mosaic() \
             .select(['R', 'G', 'B']) \
             .clip(region)
-        scale = 3
+        scale = 4
     else:
         print("🌍 Using Sentinel-2 SR Harmonized imagery")
         image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED") \
@@ -62,7 +62,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
-        scale = 3
+        scale = 4
         
     download_url = image.getDownloadURL({
         'region': region,
