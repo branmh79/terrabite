@@ -51,7 +51,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .mosaic() \
             .select(['R', 'G', 'B']) \
             .clip(region)
-        scale = 3.6
+        scale = 3 # 3.6 works for 5x5 grid
     else:
         print("🌍 Using Sentinel-2 SR Harmonized imagery")
         image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED") \
@@ -62,7 +62,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
-        scale = 3.6
+        scale = 3
         
     download_url = image.getDownloadURL({
         'region': region,
@@ -104,37 +104,51 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
         transform = src.transform
         print(f"🧩 Image size: {width} x {height}")
 
+        # Calculate total tiles and center bounds
+        tiles_x = width // tile_size
+        tiles_y = height // tile_size
+
+        start_x = (tiles_x - 5) // 2
+        start_y = (tiles_y - 5) // 2
+        end_x = start_x + 5
+        end_y = start_y + 5
+
+        print(f"🎯 Extracting tiles from X:{start_x}-{end_x-1}, Y:{start_y}-{end_y-1}")
+
         for y in range(0, height, tile_size):
             for x in range(0, width, tile_size):
+                tile_x = x // tile_size
+                tile_y = y // tile_size
+
+                # Only keep center 5x5 region
+                if not (start_x <= tile_x < end_x and start_y <= tile_y < end_y):
+                    continue
+
                 if x + tile_size <= width and y + tile_size <= height:
                     window = Window(x, y, tile_size, tile_size)
                     tile = src.read(window=window)
-
                     tile_rgb = tile.transpose(1, 2, 0).astype(np.float32)
 
                     for b in range(tile_rgb.shape[2]):
                         band = tile_rgb[:, :, b]
                         min_val = np.percentile(band, 1)
-                        max_val = np.percentile(band, 98)  # Slightly more aggressive
-                        max_val = min(max_val, 3500)       # Lower cap for cleaner Sentinel color
+                        max_val = np.percentile(band, 98)
+                        max_val = min(max_val, 3500)
                         if max_val > min_val:
                             tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val + 1e-6) * 255
                         else:
                             tile_rgb[:, :, b] = 0
 
-
                     tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
 
                     tile_path = os.path.join(output_dir, f"{prefix}_{tile_id:04d}.png")
-
-
                     Image.fromarray(tile_rgb).save(tile_path)
 
-                    # Calculate lat/lon of tile center
+                    # Lat/lon of tile center
                     row_center = y + tile_size // 2
                     col_center = x + tile_size // 2
                     lon, lat = rasterio.transform.xy(transform, row_center, col_center)
-                    
+
                     tile_data.append({
                         "path": tile_path,
                         "lat": lat,
@@ -144,6 +158,7 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
 
     print(f"✅ Tiling complete. {tile_id} tiles saved.")
     return tile_data
+
 
 # === Step 3: Unified Function ===
 
