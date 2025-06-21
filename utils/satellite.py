@@ -57,11 +57,12 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
         image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED") \
             .filterBounds(region) \
             .filterDate('2021-01-01', '2023-12-31') \
-            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)) \
-            .map(mask_s2_clouds) \
-            .median() \
+            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 5)) \
+            .sort('CLOUDY_PIXEL_PERCENTAGE') \
+            .first() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
+
         scale = 3
         
     download_url = image.getDownloadURL({
@@ -104,11 +105,9 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
         print(f"🧩 Image size: {width} x {height}")
 
         # Grid of evenly spaced center points
-        margin_x = int(width * 0.01)   # 4% margin left/right
-        margin_y = int(height * 0.01)  # 4% margin top/bottom
+        grid_x = np.linspace(tile_size // 2, width - tile_size // 2, 5, dtype=int)
+        grid_y = np.linspace(tile_size // 2, height - tile_size // 2, 5, dtype=int)
 
-        grid_x = np.linspace(margin_x + tile_size // 2, width - margin_x - tile_size // 2, 5, dtype=int)
-        grid_y = np.linspace(margin_y + tile_size // 2, height - margin_y - tile_size // 2, 5, dtype=int)
 
 
         print(f"📐 Sampling 5x5 tile centers across full extent")
@@ -154,7 +153,7 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
 
 # === Step 3: Unified Function ===
 
-def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0.96):
+def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2):
     lat_edges = np.linspace(lat_min, lat_max, grid_size + 1)
     lon_edges = np.linspace(lon_min, lon_max, grid_size + 1)
 
@@ -165,20 +164,9 @@ def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0
             lat1 = lat_edges[i + 1]
             lon0 = lon_edges[j]
             lon1 = lon_edges[j + 1]
-
-            # shrink each subregion inward by a % margin
-            lat_center = (lat0 + lat1) / 2
-            lon_center = (lon0 + lon1) / 2
-            lat_half = (lat1 - lat0) / 2 * shrink_ratio
-            lon_half = (lon1 - lon0) / 2 * shrink_ratio
-
-            sub_lat_min = lat_center - lat_half
-            sub_lat_max = lat_center + lat_half
-            sub_lon_min = lon_center - lon_half
-            sub_lon_max = lon_center + lon_half
-
-            subregions.append((sub_lat_min, sub_lon_min, sub_lat_max, sub_lon_max))
+            subregions.append((lat0, lon0, lat1, lon1))
     return subregions
+
 
 
 def process_subregion(idx, bounds, output_dir):
