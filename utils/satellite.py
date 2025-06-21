@@ -103,11 +103,29 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
         width, height = src.width, src.height
         transform = src.transform
         print(f"🧩 Image size: {width} x {height}")
-        print(f"📐 Tiling with fixed {tile_size}x{tile_size} stride")
+
+        # Add margin buffer
+        margin_x = int(width * 0.01)
+        margin_y = int(height * 0.01)
+        usable_width = width - 2 * margin_x
+        usable_height = height - 2 * margin_y
+
+        n_tiles_x = 5
+        n_tiles_y = 5
+        step_x = usable_width // n_tiles_x
+        step_y = usable_height // n_tiles_y
+
+        print(f"📐 Sampling {n_tiles_x}x{n_tiles_y} grid with spacing {step_x}x{step_y}")
 
         tile_id = 0
-        for y in range(0, height - tile_size + 1, tile_size):
-            for x in range(0, width - tile_size + 1, tile_size):
+        for i in range(n_tiles_y):
+            for j in range(n_tiles_x):
+                x = margin_x + j * step_x
+                y = margin_y + i * step_y
+
+                if x + tile_size > width or y + tile_size > height:
+                    continue
+
                 window = Window(x, y, tile_size, tile_size)
                 tile = src.read(window=window)
                 tile_rgb = tile.transpose(1, 2, 0).astype(np.float32)
@@ -141,7 +159,7 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
 
 # === Step 3: Unified Function ===
 
-def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2):
+def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0.96):
     lat_edges = np.linspace(lat_min, lat_max, grid_size + 1)
     lon_edges = np.linspace(lon_min, lon_max, grid_size + 1)
 
@@ -152,9 +170,20 @@ def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2):
             lat1 = lat_edges[i + 1]
             lon0 = lon_edges[j]
             lon1 = lon_edges[j + 1]
-            subregions.append((lat0, lon0, lat1, lon1))
-    return subregions
 
+            # shrink each subregion inward by a % margin
+            lat_center = (lat0 + lat1) / 2
+            lon_center = (lon0 + lon1) / 2
+            lat_half = (lat1 - lat0) / 2 * shrink_ratio
+            lon_half = (lon1 - lon0) / 2 * shrink_ratio
+
+            sub_lat_min = lat_center - lat_half
+            sub_lat_max = lat_center + lat_half
+            sub_lon_min = lon_center - lon_half
+            sub_lon_max = lon_center + lon_half
+
+            subregions.append((sub_lat_min, sub_lon_min, sub_lat_max, sub_lon_max))
+    return subregions
 
 
 def process_subregion(idx, bounds, output_dir):
