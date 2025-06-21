@@ -103,24 +103,11 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
         width, height = src.width, src.height
         transform = src.transform
         print(f"🧩 Image size: {width} x {height}")
-
-        # Grid of evenly spaced center points
-        grid_x = np.linspace(tile_size // 2, width - tile_size // 2, 5, dtype=int)
-        grid_y = np.linspace(tile_size // 2, height - tile_size // 2, 5, dtype=int)
-
-
-
-        print(f"📐 Sampling 5x5 tile centers across full extent")
+        print(f"📐 Tiling with fixed {tile_size}x{tile_size} stride")
 
         tile_id = 0
-        for y_center in grid_y:
-            for x_center in grid_x:
-                x = x_center - tile_size // 2
-                y = y_center - tile_size // 2
-
-                if x < 0 or y < 0 or x + tile_size > width or y + tile_size > height:
-                    continue  # skip out-of-bounds tiles
-
+        for y in range(0, height - tile_size + 1, tile_size):
+            for x in range(0, width - tile_size + 1, tile_size):
                 window = Window(x, y, tile_size, tile_size)
                 tile = src.read(window=window)
                 tile_rgb = tile.transpose(1, 2, 0).astype(np.float32)
@@ -139,7 +126,7 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
                 tile_path = os.path.join(output_dir, f"{prefix}_{tile_id:04d}.png")
                 Image.fromarray(tile_rgb).save(tile_path)
 
-                lon, lat = rasterio.transform.xy(transform, y_center, x_center)
+                lon, lat = rasterio.transform.xy(transform, y + tile_size // 2, x + tile_size // 2)
                 tile_data.append({
                     "path": tile_path,
                     "lat": lat,
@@ -147,8 +134,9 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
                 })
                 tile_id += 1
 
-    print(f"✅ Evenly spaced tiling complete. {tile_id} tiles saved.")
+    print(f"✅ Tiling complete. {tile_id} tiles saved.")
     return tile_data
+
 
 
 # === Step 3: Unified Function ===
