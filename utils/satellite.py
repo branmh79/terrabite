@@ -57,9 +57,9 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
         image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED") \
             .filterBounds(region) \
             .filterDate('2021-01-01', '2023-12-31') \
-            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 5)) \
-            .sort('CLOUDY_PIXEL_PERCENTAGE') \
-            .first() \
+            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)) \
+            .map(mask_s2_clouds) \
+            .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
 
