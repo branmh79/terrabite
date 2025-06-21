@@ -104,13 +104,9 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
         transform = src.transform
         print(f"🧩 Image size: {width} x {height}")
 
-        # Reduced margins to minimize gaps while avoiding overlap
-        margin_x = tile_size // 3
-        margin_y = tile_size // 3
-
-        # 5x5 evenly spaced tile centers within margins
-        grid_x = np.linspace(margin_x + tile_size // 2, width - margin_x - tile_size // 2, 5, dtype=int)
-        grid_y = np.linspace(margin_y + tile_size // 2, height - margin_y - tile_size // 2, 5, dtype=int)
+        # Full-coverage 5x5 grid without inner margins
+        grid_x = np.linspace(tile_size // 2, width - tile_size // 2, 5, dtype=int)
+        grid_y = np.linspace(tile_size // 2, height - tile_size // 2, 5, dtype=int)
 
         print(f"📐 Sampling 5x5 tile centers across full extent")
 
@@ -132,7 +128,10 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
                     min_val = np.percentile(band, 1)
                     max_val = np.percentile(band, 98)
                     max_val = min(max_val, 3500)
-                    tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val + 1e-6) * 255 if max_val > min_val else 0
+                    if max_val > min_val:
+                        tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val + 1e-6) * 255
+                    else:
+                        tile_rgb[:, :, b] = 0
 
                 tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
                 tile_path = os.path.join(output_dir, f"{prefix}_{tile_id:04d}.png")
@@ -152,9 +151,10 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
 
 
 
+
 # === Step 3: Unified Function ===
 
-def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0.92):
+def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0.98):
     lat_edges = np.linspace(lat_min, lat_max, grid_size + 1)
     lon_edges = np.linspace(lon_min, lon_max, grid_size + 1)
 
