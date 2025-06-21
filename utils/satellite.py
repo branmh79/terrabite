@@ -105,8 +105,8 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
         print(f"🧩 Image size: {width} x {height}")
 
         # Reduced margins to minimize gaps while avoiding overlap
-        margin_x = tile_size // 6
-        margin_y = tile_size // 6
+        margin_x = tile_size // 3
+        margin_y = tile_size // 3
 
         # 5x5 evenly spaced tile centers within margins
         grid_x = np.linspace(margin_x + tile_size // 2, width - margin_x - tile_size // 2, 5, dtype=int)
@@ -154,7 +154,7 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
 
 # === Step 3: Unified Function ===
 
-def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0.96):
+def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0.92):
     lat_edges = np.linspace(lat_min, lat_max, grid_size + 1)
     lon_edges = np.linspace(lon_min, lon_max, grid_size + 1)
 
