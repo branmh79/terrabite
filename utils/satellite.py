@@ -104,26 +104,23 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
         transform = src.transform
         print(f"🧩 Image size: {width} x {height}")
 
-        # Add margin buffer
-        margin_x = int(width * 0.01)
-        margin_y = int(height * 0.01)
-        usable_width = width - 2 * margin_x
-        usable_height = height - 2 * margin_y
+        # Reduced margins to minimize gaps while avoiding overlap
+        margin_x = tile_size // 6
+        margin_y = tile_size // 6
 
-        n_tiles_x = 5
-        n_tiles_y = 5
-        step_x = usable_width // n_tiles_x
-        step_y = usable_height // n_tiles_y
+        # 5x5 evenly spaced tile centers within margins
+        grid_x = np.linspace(margin_x + tile_size // 2, width - margin_x - tile_size // 2, 5, dtype=int)
+        grid_y = np.linspace(margin_y + tile_size // 2, height - margin_y - tile_size // 2, 5, dtype=int)
 
-        print(f"📐 Sampling {n_tiles_x}x{n_tiles_y} grid with spacing {step_x}x{step_y}")
+        print(f"📐 Sampling 5x5 tile centers across full extent")
 
         tile_id = 0
-        for i in range(n_tiles_y):
-            for j in range(n_tiles_x):
-                x = margin_x + j * step_x
-                y = margin_y + i * step_y
+        for y_center in grid_y:
+            for x_center in grid_x:
+                x = x_center - tile_size // 2
+                y = y_center - tile_size // 2
 
-                if x + tile_size > width or y + tile_size > height:
+                if x < 0 or y < 0 or x + tile_size > width or y + tile_size > height:
                     continue
 
                 window = Window(x, y, tile_size, tile_size)
@@ -135,16 +132,13 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
                     min_val = np.percentile(band, 1)
                     max_val = np.percentile(band, 98)
                     max_val = min(max_val, 3500)
-                    if max_val > min_val:
-                        tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val + 1e-6) * 255
-                    else:
-                        tile_rgb[:, :, b] = 0
+                    tile_rgb[:, :, b] = (band - min_val) / (max_val - min_val + 1e-6) * 255 if max_val > min_val else 0
 
                 tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
                 tile_path = os.path.join(output_dir, f"{prefix}_{tile_id:04d}.png")
                 Image.fromarray(tile_rgb).save(tile_path)
 
-                lon, lat = rasterio.transform.xy(transform, y + tile_size // 2, x + tile_size // 2)
+                lon, lat = rasterio.transform.xy(transform, y_center, x_center)
                 tile_data.append({
                     "path": tile_path,
                     "lat": lat,
@@ -152,8 +146,9 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
                 })
                 tile_id += 1
 
-    print(f"✅ Tiling complete. {tile_id} tiles saved.")
+    print(f"✅ Evenly spaced tiling complete. {tile_id} tiles saved.")
     return tile_data
+
 
 
 
