@@ -96,6 +96,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
         raise RuntimeError(f"Unexpected content type: {content_type}")
 
 
+
 # === Step 2: Tile TIF into 256x256 PNGs ===
 def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
     tile_data = []
