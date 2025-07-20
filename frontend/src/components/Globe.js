@@ -16,9 +16,11 @@ import {
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useEffect, useRef, useState } from "react";
 import { IonImageryProvider } from "cesium";
+import { API_ENDPOINTS } from "../config";
 
 const degToRad = (deg) => deg * Math.PI / 180;
 
+// Ion API key - this is a public key
 Ion.defaultAccessToken =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMzEwY2M1ZS03NThmLTQwYmQtOGViZS0wMzlmYjVjYTc0NTUiLCJpZCI6MzA1NDI2LCJpYXQiOjE3NDc5NjkwMzJ9.Z4nYi_tZpHiysag2soHdOMih6nELUaFDJ6BfujbDCwI";
 
@@ -60,7 +62,7 @@ const handleRegionConfirm = async () => {
 
   try {
     // Send prediction request
-    const res = await fetch("https://terrabite.onrender.com/predict", {
+    const res = await fetch(API_ENDPOINTS.predict, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(region),
@@ -74,7 +76,7 @@ const handleRegionConfirm = async () => {
     // Start polling
     const pollProgress = async () => {
       try {
-        const res = await fetch(`https://terrabite.onrender.com/progress/${sessionId}`);
+        const res = await fetch(`${API_ENDPOINTS.progress}/${sessionId}`);
         const prog = await res.json();
 
         setProgress(prog);
@@ -85,7 +87,7 @@ const handleRegionConfirm = async () => {
           setTimeout(pollProgress, 1000);
         } else {
           try {
-            const tilesRes = await fetch(`https://terrabite.onrender.com/results/${sessionId}`);
+            const tilesRes = await fetch(`${API_ENDPOINTS.results}/${sessionId}`);
             const tilesJson = await tilesRes.json();
             setHeatmapTiles(tilesJson.tiles);
           } catch (err) {
@@ -113,8 +115,8 @@ const handleRegionConfirm = async () => {
       baseLayerPicker: false,
       animation: false,
       timeline: false,
-      infoBox: true,           // ✅ enable the info box
-      selectionIndicator: true // ✅ show selected entity box
+      infoBox: true,           
+      selectionIndicator: true
     });
 
 
@@ -136,7 +138,6 @@ useEffect(() => {
     if (!viewer || !viewer.scene || !viewer.scene.canvas || !Array.isArray(heatmapTiles)) return;
 
 
-  // Optional: Clear previous heatmap tiles
   const heatmapEntities = [];
 
     heatmapTiles.forEach((tile) => {
@@ -180,7 +181,7 @@ useEffect(() => {
         <strong>Score:</strong> ${clampedScore.toFixed(3)}<br/>
         <strong>Latitude:</strong> ${lat.toFixed(5)}<br/>
         <strong>Longitude:</strong> ${lon.toFixed(5)}<br/><br/>
-        <img src="https://terrabite.onrender.com/tiles/${id}.png" 
+        <img src="${API_ENDPOINTS.tiles}/${id}.png" 
             width="256" 
             height="256" 
             style="border-radius: 6px; box-shadow: 0 0 6px rgba(0,0,0,0.6);" />
@@ -414,9 +415,6 @@ useEffect(() => {
 )}
 
 
-
-
-
       {/* Selection Tool Icon with Tooltip */}
 <div style={{ position: "absolute", top: 45, right: 7.5, zIndex: 10 }}>
   <div
@@ -503,19 +501,19 @@ useEffect(() => {
     </div>
     <button
     onClick={async () => {
-    setIsLoading(true); // 👈 Show loading message
+    setIsLoading(true);
     setSelectionPlaced(false);
     setSelectMode(false);
-    setCenterCartographic(null); // 👈 Clear selection
+    setCenterCartographic(null);
     
-    if (viewer) viewer.entities.removeAll(); // 👈 Remove circle/label/box
+    if (viewer) viewer.entities.removeAll();
 
     try {
         await handleRegionConfirm();
     } catch (err) {
         console.error("❌ Prediction error:", err);
     } finally {
-        setIsLoading(false); // 👈 Hide loading message
+        setIsLoading(false);
     }
     }}
 

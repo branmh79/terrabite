@@ -17,6 +17,7 @@ import rasterio
 from fastapi import BackgroundTasks
 from fastapi.responses import JSONResponse
 import json
+from config import CORS_ORIGINS
 
 progress = {}
 
@@ -24,7 +25,7 @@ progress = {}
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,7 +69,7 @@ def predict_region(req: RegionRequest, background_tasks: BackgroundTasks):
         "stage": "prediction"
     }
 
-    # 🔁 Run prediction in background
+    # Run prediction in background
     background_tasks.add_task(run_predictions, tile_data, session_id)
 
     return {"session_id": session_id}
@@ -101,7 +102,7 @@ def run_predictions(tile_data, session_id):
     
     progress[session_id]["stage"] = "done"
 
-    # ✅ STEP 1: Save results to disk for frontend to load later
+    # STEP 1: Save results to disk for frontend to load later
     import json
     with open(f"temp_tiles/results_{session_id}.json", "w") as f:
         json.dump(results, f)
@@ -154,5 +155,5 @@ def clean_folder():
         log("😴 Sleeping for 1 hour...\n")
         time.sleep(3600)
 
-# 🧵 Start background thread on server startup
+# Start background thread on server startup
 threading.Thread(target=clean_folder, daemon=True).start()

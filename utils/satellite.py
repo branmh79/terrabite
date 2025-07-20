@@ -151,9 +151,6 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
     return tile_data
 
 
-
-
-
 # === Step 3: Unified Function ===
 
 def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0.95):
