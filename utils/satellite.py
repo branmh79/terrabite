@@ -212,13 +212,18 @@ def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
     subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2)
     all_tile_data = []
 
-    # Use fewer workers in production to avoid CPU bottleneck
+    # Determine if this is a US region (NAIP) or non-US region (Sentinel-2)
+    center_lat = (lat_min + lat_max) / 2
+    center_lon = (lon_min + lon_max) / 2
+    is_us_region = is_in_us(center_lat, center_lon)
+
+    # Use different worker counts based on environment and data source
     if os.path.exists('service-account/terrabite-earthengine.json'):
         # Local development - use more workers
         max_workers = 4
     else:
-        # Production - try 2 workers for better I/O utilization
-        max_workers = 2
+        # Production - use 4 workers (original setting that worked for NAIP)
+        max_workers = 4
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
