@@ -1,6 +1,6 @@
 // Configuration file for TerraBite frontend endpoints
 // Set this to true for local development, false for production
-const LOCAL_DEVELOPMENT = false;
+const LOCAL_DEVELOPMENT = true;
 
 // Base URLs
 const BACKEND_BASE_URL = LOCAL_DEVELOPMENT 

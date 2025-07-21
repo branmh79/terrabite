@@ -61,7 +61,6 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
         scale = 3 # 3.6 works for 5x5 grid
     else:
         print("🌍 Using Sentinel-2 SR Harmonized imagery")
-        # Optimized for single CPU while maintaining quality
         image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED") \
             .filterBounds(region) \
             .filterDate('2021-01-01', '2023-12-31') \
@@ -71,9 +70,8 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
+        scale = 1  # Maximum upsampled resolution for Sentinel-2
 
-        scale = 3  # Keep high quality for ML inference
-        
     download_url = image.getDownloadURL({
         'region': region,
         'scale': scale,
@@ -107,13 +105,41 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
 
 
 # === Step 2: Tile TIF into 256x256 PNGs ===
-def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile"):
+def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile", single_tile=False, apply_normalization=False):
     tile_data = []
 
     with rasterio.open(input_tif_path) as src:
         width, height = src.width, src.height
         transform = src.transform
         print(f"🧩 Image size: {width} x {height}")
+
+        if single_tile:
+            tile = src.read()
+            tile_path = os.path.join(output_dir, f"{prefix}_single.png")
+            if apply_normalization:
+                tile_rgb = tile.transpose(1, 2, 0).astype(np.float32)
+                for b in range(tile_rgb.shape[2]):
+                    band = tile_rgb[:, :, b]
+                    p2 = np.percentile(band, 2)
+                    p98 = np.percentile(band, 98)
+                    band_clipped = np.clip(band, p2, p98)
+                    gamma = 0.8
+                    band_normalized = np.power(band_clipped / p98, gamma)
+                    tile_rgb[:, :, b] = np.clip(band_normalized * 255, 0, 255)
+                tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
+            else:
+                tile_rgb = tile.transpose(1, 2, 0)
+                if tile_rgb.dtype != np.uint8:
+                    tile_rgb = np.clip(tile_rgb, 0, 255).astype(np.uint8)
+            Image.fromarray(tile_rgb).save(tile_path)
+            lon, lat = rasterio.transform.xy(transform, height // 2, width // 2)
+            tile_data.append({
+                "path": tile_path,
+                "lat": lat,
+                "lon": lon
+            })
+            print(f"✅ Single-tile mode: 1 tile saved.")
+            return tile_data
 
         # Full-coverage 5x5 grid without inner margins
         grid_x = np.linspace(tile_size // 2, width - tile_size // 2, 5, dtype=int)
@@ -198,8 +224,13 @@ def process_subregion(idx, bounds, output_dir):
     try:
         print(f"📦 Starting subregion {idx + 1} download...")
         download_tif(s_lat_min, s_lon_min, s_lat_max, s_lon_max, tif_path)
-        tile_data = tile_tif(tif_path, tile_size=256, output_dir=output_dir, prefix=f"tile_s{idx}")
-
+        center_lat = (s_lat_min + s_lat_max) / 2
+        center_lon = (s_lon_min + s_lon_max) / 2
+        is_us_region = is_in_us(center_lat, center_lon)
+        if is_us_region:
+            tile_data = tile_tif(tif_path, tile_size=256, output_dir=output_dir, prefix=f"tile_s{idx}", apply_normalization=False)
+        else:
+            tile_data = tile_tif(tif_path, output_dir=output_dir, prefix=f"tile_s{idx}", single_tile=True, apply_normalization=True)
         return tile_data
     except Exception as e:
         print(f"❌ Subregion {idx + 1} failed: {e}")
@@ -209,21 +240,20 @@ def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
     shutil.rmtree(output_dir, ignore_errors=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2)
-    all_tile_data = []
-
-    # Determine if this is a US region (NAIP) or non-US region (Sentinel-2)
     center_lat = (lat_min + lat_max) / 2
     center_lon = (lon_min + lon_max) / 2
     is_us_region = is_in_us(center_lat, center_lon)
 
-    # Use different worker counts based on environment and data source
-    if os.path.exists('service-account/terrabite-earthengine.json'):
-        # Local development - use more workers
-        max_workers = 4
+    # Use a 10x10 grid for Sentinel-2 (non-US), 2x2 for NAIP (US)
+    if is_us_region:
+        grid_size = 2
     else:
-        # Production - use 4 workers (original setting that worked for NAIP)
-        max_workers = 4
+        grid_size = 10  # 10x10 = 100 tiles, flush grid for Sentinel-2
+
+    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=grid_size)
+    all_tile_data = []
+
+    max_workers = 4
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
