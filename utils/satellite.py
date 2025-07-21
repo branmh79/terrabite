@@ -13,7 +13,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # === Authenticate with Service Account ===
 SERVICE_ACCOUNT = 'terrabite-earthengine@food-desert-app.iam.gserviceaccount.com'
-KEY_PATH = '/etc/secrets/terrabite-earthengine.json'
+
+# Use different key paths for local vs production
+if os.path.exists('service-account/terrabite-earthengine.json'):
+    # Local development
+    KEY_PATH = 'service-account/terrabite-earthengine.json'
+else:
+    # Production (Render)
+    KEY_PATH = '/etc/secrets/terrabite-earthengine.json'
 
 try:
     credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT, KEY_PATH)
@@ -54,16 +61,18 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
         scale = 3 # 3.6 works for 5x5 grid
     else:
         print("🌍 Using Sentinel-2 SR Harmonized imagery")
+        # Optimized for single CPU while maintaining quality
         image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED") \
             .filterBounds(region) \
             .filterDate('2021-01-01', '2023-12-31') \
             .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)) \
+            .limit(5) \
             .map(mask_s2_clouds) \
             .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
 
-        scale = 3
+        scale = 3  # Keep high quality for ML inference
         
     download_url = image.getDownloadURL({
         'region': region,
@@ -203,7 +212,15 @@ def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
     subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2)
     all_tile_data = []
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    # Use fewer workers in production to avoid CPU bottleneck
+    if os.path.exists('service-account/terrabite-earthengine.json'):
+        # Local development - use more workers
+        max_workers = 4
+    else:
+        # Production - try 2 workers for better I/O utilization
+        max_workers = 2
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
             executor.submit(process_subregion, idx, bounds, output_dir)
             for idx, bounds in enumerate(subregions)

@@ -9,3 +9,4 @@ __pycache__/
 /service-account/
 frontend/build/
 frontend/node_modules/
+temp_tiles/
