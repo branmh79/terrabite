@@ -1,6 +1,6 @@
 # Configuration file for TerraBite endpoints
 # Set this to True for local development, False for production
-LOCAL_DEVELOPMENT = True
+LOCAL_DEVELOPMENT = False
 
 # Base URLs
 if LOCAL_DEVELOPMENT:
