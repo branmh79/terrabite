@@ -78,14 +78,29 @@ const handleRegionConfirm = async () => {
       try {
         const res = await fetch(`${API_ENDPOINTS.progress}/${sessionId}`);
         const prog = await res.json();
-
+        console.log("Progress:", prog); // Debug log
         setProgress(prog);
-        setProgressText(`Analyzing satellite tiles: ${prog.completed} of ${prog.total} complete`);
 
+        if (prog.stage === "downloading") {
+          setProgressText(
+            prog.subregions_total > 0
+              ? `Downloading subregions: ${prog.subregions_completed} of ${prog.subregions_total} complete`
+              : "Downloading subregions..."
+          );
+        } else if (prog.stage === "prediction") {
+          setProgressText(
+            `Analyzing satellite tiles: ${prog.completed} of ${prog.total} complete`
+          );
+        } else if (prog.stage === "done") {
+          setProgressText("Complete!");
+        }
 
-        if (prog.completed < prog.total) {
+        if (
+          (prog.stage === "downloading") ||
+          (prog.stage === "prediction" && prog.completed < prog.total)
+        ) {
           setTimeout(pollProgress, 1000);
-        } else {
+        } else if (prog.stage === "done") {
           try {
             const tilesRes = await fetch(`${API_ENDPOINTS.results}/${sessionId}`);
             const tilesJson = await tilesRes.json();
@@ -407,7 +422,7 @@ useEffect(() => {
             fontWeight: "bold"
           }}
         >
-          Let’s go!
+          Let's go!
         </button>
       </div>
     </div>
@@ -534,26 +549,6 @@ useEffect(() => {
   </div>
 )}
 
-{isLoading && (
-  <div
-    style={{
-      position: "absolute",
-      top: 20,
-      left: "50%",
-      transform: "translateX(-50%)",
-      backgroundColor: "#000",
-      color: "#0ff",
-      padding: "10px 20px",
-      borderRadius: "8px",
-      fontFamily: "monospace",
-      fontSize: "14px",
-      zIndex: 999,
-    }}
-  >
-      Preparing satellite imagery and fetching region data...
-  </div>
-)}
-
 <div
   style={{
     position: "absolute",
@@ -583,7 +578,49 @@ useEffect(() => {
     <span>1</span>
   </div>
 </div>
-{progress && progress.total > 1 && progress.completed < progress.total && (
+{progress && progress.stage === "downloading" && (
+  <div
+    style={{
+      position: "absolute",
+      top: 20,
+      left: "50%",
+      transform: "translateX(-50%)",
+      backgroundColor: "#111",
+      color: "#0ff",
+      padding: "10px 20px",
+      borderRadius: "8px",
+      fontFamily: "monospace",
+      fontSize: "13px",
+      zIndex: 999,
+      textAlign: "center",
+    }}
+  >
+    <div>Retrieving satellite data...</div>
+    <div
+      style={{
+        width: "100%",
+        height: 10,
+        backgroundColor: "#333",
+        borderRadius: 4,
+        marginTop: 6,
+      }}
+    >
+      <div
+        style={{
+          width:
+            progress.subregions_total > 0
+              ? `${(progress.subregions_completed / progress.subregions_total) * 100}%`
+              : "10%",
+          height: "100%",
+          backgroundColor: "#0ff",
+          borderRadius: 4,
+          transition: "width 0.3s ease",
+        }}
+      />
+    </div>
+  </div>
+)}
+{progress && progress.stage === "prediction" && progress.total > 1 && progress.completed < progress.total && (
   <div
     style={{
       position: "absolute",

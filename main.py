@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
-from utils.satellite import generate_tiles
+from utils.satellite import generate_tiles, is_in_us, split_region
 from model.inference import predict_tile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -18,8 +18,7 @@ from fastapi import BackgroundTasks
 from fastapi.responses import JSONResponse
 import json
 from config import CORS_ORIGINS
-
-progress = {}
+from progress_state import progress
 
 # === FastAPI Setup ===
 app = FastAPI()
@@ -52,27 +51,40 @@ def predict_region(req: RegionRequest, background_tasks: BackgroundTasks):
     tile_folder = os.path.join("temp_tiles", "tiles", session_id)
     os.makedirs(tile_folder, exist_ok=True)
 
-    try:
-        radius_deg = req.radius_km * 0.0088
-        lat_min = req.latitude - radius_deg
-        lat_max = req.latitude + radius_deg
-        lon_min = req.longitude - radius_deg
-        lon_max = req.longitude + radius_deg
-        tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max, tile_folder)
-    except Exception as e:
-        print(f"❌ Failed to generate tiles: {e}")
-        return {"tiles": [], "session_id": session_id}
-
     progress[session_id] = {
+        "subregions_completed": 0,
+        "subregions_total": 0,
         "completed": 0,
-        "total": len(tile_data),
-        "stage": "prediction"
+        "total": 0,
+        "stage": "downloading"
     }
 
-    # Run prediction in background
-    background_tasks.add_task(run_predictions, tile_data, session_id)
+    radius_deg = req.radius_km * 0.0088
+    lat_min = req.latitude - radius_deg
+    lat_max = req.latitude + radius_deg
+    lon_min = req.longitude - radius_deg
+    lon_max = req.longitude + radius_deg
+    from utils.satellite import is_in_us, split_region
+    center_lat = (lat_min + lat_max) / 2
+    center_lon = (lon_min + lon_max) / 2
+    is_us_region = is_in_us(center_lat, center_lon)
+    grid_size = 2 if is_us_region else 10
+    subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=grid_size)
+    progress[session_id]["subregions_total"] = len(subregions)
+
+    # Schedule the tile generation and prediction as a background task
+    background_tasks.add_task(background_generate_and_predict, lat_min, lon_min, lat_max, lon_max, tile_folder, session_id)
 
     return {"session_id": session_id}
+
+
+def background_generate_and_predict(lat_min, lon_min, lat_max, lon_max, tile_folder, session_id):
+    from utils.satellite import generate_tiles
+    tile_data = generate_tiles(lat_min, lon_min, lat_max, lon_max, tile_folder, session_id=session_id)
+    progress[session_id]["completed"] = 0
+    progress[session_id]["total"] = len(tile_data)
+    progress[session_id]["stage"] = "prediction"
+    run_predictions(tile_data, session_id)
 
 
 def run_predictions(tile_data, session_id):
@@ -110,7 +122,7 @@ def run_predictions(tile_data, session_id):
 
 @app.get("/progress/{session_id}")
 def get_progress(session_id: str):
-    return progress.get(session_id, {"completed": 0, "total": 0, "stage": "initializing"})
+    return progress.get(session_id, {"completed": 0, "total": 0, "subregions_completed": 0, "subregions_total": 0, "stage": "initializing"})
 
 @app.get("/results/{session_id}")
 def get_results(session_id: str):

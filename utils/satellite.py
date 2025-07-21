@@ -10,6 +10,7 @@ import shutil
 from shapely.geometry import Point, shape
 import geopandas as gpd
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from progress_state import progress
 
 # === Authenticate with Service Account ===
 SERVICE_ACCOUNT = 'terrabite-earthengine@food-desert-app.iam.gserviceaccount.com'
@@ -70,7 +71,7 @@ def download_tif(lat_min, lon_min, lat_max, lon_max, tif_path):
             .median() \
             .select(['B4', 'B3', 'B2']) \
             .clip(region)
-        scale = 1  # Maximum upsampled resolution for Sentinel-2
+        scale = 1 
 
     download_url = image.getDownloadURL({
         'region': region,
@@ -141,7 +142,6 @@ def tile_tif(input_tif_path, tile_size=256, output_dir=None, prefix="tile", sing
             print(f"✅ Single-tile mode: 1 tile saved.")
             return tile_data
 
-        # Full-coverage 5x5 grid without inner margins
         grid_x = np.linspace(tile_size // 2, width - tile_size // 2, 5, dtype=int)
         grid_y = np.linspace(tile_size // 2, height - tile_size // 2, 5, dtype=int)
 
@@ -217,7 +217,7 @@ def split_region(lat_min, lon_min, lat_max, lon_max, grid_size=2, shrink_ratio=0
 
 
 
-def process_subregion(idx, bounds, output_dir):
+def process_subregion(idx, bounds, output_dir, session_id=None):
     s_lat_min, s_lon_min, s_lat_max, s_lon_max = bounds
     tif_path = os.path.join(output_dir, f'subregion_{idx}.tif')
 
@@ -231,12 +231,17 @@ def process_subregion(idx, bounds, output_dir):
             tile_data = tile_tif(tif_path, tile_size=256, output_dir=output_dir, prefix=f"tile_s{idx}", apply_normalization=False)
         else:
             tile_data = tile_tif(tif_path, output_dir=output_dir, prefix=f"tile_s{idx}", single_tile=True, apply_normalization=True)
+        
+        # Update progress after subregion is completed
+        if session_id is not None:
+            progress[session_id]["subregions_completed"] += 1
+        
         return tile_data
     except Exception as e:
         print(f"❌ Subregion {idx + 1} failed: {e}")
         return []
 
-def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
+def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir, session_id=None):
     shutil.rmtree(output_dir, ignore_errors=True)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -248,16 +253,17 @@ def generate_tiles(lat_min, lon_min, lat_max, lon_max, output_dir):
     if is_us_region:
         grid_size = 2
     else:
-        grid_size = 10  # 10x10 = 100 tiles, flush grid for Sentinel-2
+        grid_size = 10
 
     subregions = split_region(lat_min, lon_min, lat_max, lon_max, grid_size=grid_size)
     all_tile_data = []
 
     max_workers = 4
 
+    from functools import partial
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(process_subregion, idx, bounds, output_dir)
+            executor.submit(partial(process_subregion, idx, bounds, output_dir, session_id))
             for idx, bounds in enumerate(subregions)
         ]
 
